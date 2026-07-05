@@ -2,11 +2,20 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-COPY package*.json ./
-RUN npm install
+# Copy package files from backend directory to install dependencies
+COPY backend/package*.json ./
+RUN npm install --omit=dev
 
-COPY . .
+# Copy backend source files
+COPY backend/ ./
 
-EXPOSE 5000
+RUN mkdir -p uploads config
+
+# Persist user uploads across container restarts when Railway volume is mounted at /app/uploads
+VOLUME ["/app/uploads"]
+
+EXPOSE 5001
+
+ENV NODE_ENV=production
 
 CMD ["npm", "start"]
