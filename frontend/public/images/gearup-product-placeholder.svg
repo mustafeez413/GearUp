@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="320" height="240" viewBox="0 0 320 240" fill="none">
+  <rect width="320" height="240" rx="16" fill="#F8FAFC"/>
+  <rect x="1" y="1" width="318" height="238" rx="15" stroke="#E5E7EB"/>
+  <rect x="120" y="72" width="80" height="64" rx="12" fill="#E8FFF5" stroke="#00A878" stroke-width="2"/>
+  <path d="M136 104h48M160 80v48" stroke="#00A878" stroke-width="4" stroke-linecap="round"/>
+  <text x="160" y="168" text-anchor="middle" fill="#64748B" font-family="Arial, sans-serif" font-size="12" font-weight="700">GEARUP PRODUCT</text>
+</svg>

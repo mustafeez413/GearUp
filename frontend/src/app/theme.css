@@ -1,0 +1,38 @@
+/* src/app/theme.css – Central theme utility classes */
+
+/* Active sidebar navigation item */
+.seller-nav-active {
+  background-color: #10B981 !important;
+  color: #fff !important;
+  border-radius: 10px;
+  box-shadow: 0 0 14px rgba(16, 185, 129, 0.35);
+}
+
+/* KPI / Stat card */
+.seller-kpi {
+  border-top-width: 4px;
+  border-top-color: var(--color-seller-accent) !important;
+  background: var(--color-seller-surface);
+  padding: 1.25rem;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(26, 35, 50, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.seller-kpi:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(26, 35, 50, 0.1);
+}
+
+/* Generic dashboard card */
+.dashboard-card {
+  background: var(--color-seller-surface);
+  border: 1px solid var(--color-seller-border);
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px rgba(26, 35, 50, 0.06);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.dashboard-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+}

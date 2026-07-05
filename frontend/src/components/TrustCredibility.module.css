@@ -1,0 +1,45 @@
+.trustCredibility {
+    padding: 6rem 1.5rem;
+    background-color: #F8FAFC;
+}
+
+.trustHeader {
+    text-align: center;
+    margin-bottom: 4rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.trustGrid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2rem;
+    max-width: 1200px;
+    margin: 0 auto;
+}
+
+.trustCard {
+    background-color: white;
+    padding: 2rem;
+    border-radius: 1rem;
+    border: 1px solid #E2E8F0;
+    transition: all 0.3s ease;
+}
+
+.trustCard:hover {
+    box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1);
+    transform: translateY(-4px);
+}
+
+@media (max-width: 1024px) {
+    .trustGrid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .trustGrid {
+        grid-template-columns: 1fr;
+    }
+}

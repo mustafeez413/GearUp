@@ -1,0 +1,35 @@
+# Dependencies
+node_modules/
+
+# Legacy folder (renamed to frontend/) — do not commit
+frontend-next/
+
+# Environment & secrets (never commit)
+.env
+.env.*
+!.env.example
+!.env.local.example
+
+# Google Cloud service account keys
+backend/config/*.json
+!backend/config/.gitkeep
+
+# Next.js build output
+frontend/.next/
+frontend/out/
+
+# Backend uploads
+backend/uploads/*
+!backend/uploads/.gitkeep
+
+# Logs & OS
+*.log
+npm-debug.log*
+.DS_Store
+Thumbs.db
+
+# Local backups (large archives)
+backups/
+
+_git_push_helper/
+

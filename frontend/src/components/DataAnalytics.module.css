@@ -1,0 +1,39 @@
+.dataAnalytics {
+    padding: 6rem 1.5rem;
+    background: linear-gradient(to bottom, #FFFFFF 0%, #F8F9FA 100%);
+}
+
+.analyticsHeader {
+    text-align: center;
+    margin-bottom: 3rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.analyticsDashboard {
+    max-width: 1400px;
+    margin: 0 auto;
+    background-color: white;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(10, 37, 64, 0.1);
+    overflow: hidden;
+    border: 1px solid #E9ECEF;
+}
+
+/* ... more styles if needed, but the JS uses mostly tailwind ... */
+@keyframes bounceSlow {
+
+    0%,
+    100% {
+        transform: translateY(0);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+}
+
+.animateBounceSlow {
+    animation: bounceSlow 3s ease-in-out infinite;
+}

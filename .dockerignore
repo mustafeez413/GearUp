@@ -1,0 +1,11 @@
+node_modules
+**/node_modules
+.env
+**/.env
+.git
+frontend/.next
+frontend/node_modules
+backend/uploads/*
+!backend/uploads/.gitkeep
+*.md
+push-to-github.ps1

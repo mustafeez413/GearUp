@@ -1,0 +1,230 @@
+.smartSearch {
+    padding: 5rem 1rem;
+    background-color: white;
+}
+
+.searchSection {
+    max-width: 900px;
+    margin: 0 auto;
+    text-align: center;
+}
+
+.searchTitle {
+    font-family: var(--font-heading);
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 700;
+    color: var(--color-primary-deep);
+    margin-bottom: 1rem;
+    letter-spacing: -0.5px;
+}
+
+.searchSubtitle {
+    font-family: var(--font-body);
+    font-size: 1.1rem;
+    color: var(--color-neutral-dark);
+    margin-bottom: 3rem;
+}
+
+.searchWrapper {
+    margin-bottom: 2rem;
+}
+
+.searchInputContainer {
+    display: flex;
+    align-items: center;
+    background-color: white;
+    border: 2px solid var(--color-neutral-medium);
+    border-radius: 12px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 1rem;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 8px rgba(10, 31, 53, 0.05);
+}
+
+.searchInputContainer:focus-within {
+    border-color: var(--color-primary-navy);
+    box-shadow: 0 4px 16px rgba(10, 31, 53, 0.1);
+}
+
+.searchIcon {
+    color: var(--color-neutral-dark);
+    margin-right: 1rem;
+    flex-shrink: 0;
+}
+
+.searchInput {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: #171717;
+    background: transparent;
+}
+
+.searchButton {
+    padding: 0.625rem 1.5rem;
+    background-color: var(--color-primary-deep);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-left: 1rem;
+}
+
+.searchButton:hover {
+    background-color: var(--color-primary-navy);
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(10, 31, 53, 0.2);
+}
+
+.filterToggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1.5rem;
+    background-color: transparent;
+    border: 1px solid var(--color-neutral-medium);
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: #171717;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filterToggle:hover {
+    border-color: var(--color-primary-navy);
+    color: var(--color-primary-navy);
+    background-color: var(--color-neutral-light);
+}
+
+.filtersPanel {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: center;
+    padding: 1.5rem;
+    background-color: var(--color-neutral-light);
+    border-radius: 12px;
+    margin-bottom: 1.5rem;
+    flex-wrap: wrap;
+    animation: slideDown 0.3s ease-out;
+}
+
+@keyframes slideDown {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.filterGroup {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    min-width: 150px;
+}
+
+.filterGroup label {
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: #171717;
+    text-align: left;
+}
+
+.filterSelect {
+    padding: 0.625rem 1rem;
+    border: 1px solid var(--color-neutral-medium);
+    border-radius: 8px;
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    color: #171717;
+    background-color: white;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.filterSelect:focus {
+    outline: none;
+    border-color: var(--color-primary-navy);
+}
+
+.quickFilters {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.quickFilterLabel {
+    font-family: var(--font-body);
+    font-size: 0.95rem;
+    font-weight: 500;
+    color: var(--color-neutral-dark);
+}
+
+.quickFilterTag {
+    padding: 0.5rem 1rem;
+    background-color: var(--color-neutral-light);
+    border: 1px solid var(--color-neutral-medium);
+    border-radius: 20px;
+    font-family: var(--font-body);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #171717;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.quickFilterTag:hover {
+    background-color: var(--color-primary-deep);
+    border-color: var(--color-primary-deep);
+    color: white;
+    transform: translateY(-1px);
+}
+
+@media (max-width: 768px) {
+    .smartSearch {
+        padding: 3rem 1rem;
+    }
+
+    .searchInputContainer {
+        flex-direction: column;
+        align-items: stretch;
+        padding: 1rem;
+    }
+
+    .searchIcon {
+        display: none;
+    }
+
+    .searchInput {
+        margin-bottom: 1rem;
+    }
+
+    .searchButton {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .filtersPanel {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .filterGroup {
+        width: 100%;
+    }
+}

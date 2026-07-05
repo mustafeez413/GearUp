@@ -1,0 +1,10 @@
+.callToAction {
+    background-color: white;
+    padding: 6rem 1.5rem;
+}
+
+.glow {
+    pointer-events: none;
+    position: absolute;
+    border-radius: 9999px;
+}

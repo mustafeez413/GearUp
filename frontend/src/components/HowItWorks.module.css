@@ -1,0 +1,142 @@
+.howItWorks {
+    padding: 6rem 1.5rem;
+    background: linear-gradient(to bottom, var(--color-neutral-light) 0%, #ffffff 100%);
+}
+
+.worksHeader {
+    text-align: center;
+    margin-bottom: 4rem;
+    max-width: 700px;
+    margin-left: auto;
+    margin-right: auto;
+}
+
+.worksTimeline {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+    max-width: 1400px;
+    margin: 0 auto;
+    position: relative;
+}
+
+.worksStep {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.stepNumber {
+    font-family: var(--font-heading);
+    font-size: 4rem;
+    font-weight: 700;
+    color: rgba(10, 31, 53, 0.08);
+    line-height: 1;
+    margin-bottom: -1.5rem;
+    z-index: 0;
+    position: relative;
+}
+
+.stepIcon {
+    width: 80px;
+    height: 80px;
+    background-color: white;
+    border: 3px solid var(--color-primary-deep);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--color-primary-deep);
+    margin-bottom: 1.5rem;
+    z-index: 1;
+    position: relative;
+    transition: all 0.3s ease;
+    box-shadow: 0 4px 12px rgba(10, 31, 53, 0.1);
+}
+
+.worksStep:hover .stepIcon {
+    background-color: var(--color-primary-deep);
+    color: white;
+    transform: scale(1.1);
+    box-shadow: 0 8px 24px rgba(10, 31, 53, 0.2);
+}
+
+.stepContent {
+    z-index: 1;
+    position: relative;
+}
+
+.stepTitle {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: var(--color-primary-deep);
+    margin-bottom: 0.75rem;
+}
+
+.stepDescription {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    color: var(--color-neutral-dark);
+    line-height: 1.7;
+}
+
+.stepConnector {
+    position: absolute;
+    top: 40px;
+    right: -1.5rem;
+    width: 100%;
+    height: 3px;
+    background: linear-gradient(to right, var(--color-primary-navy) 0%, transparent 100%);
+    z-index: 0;
+}
+
+.worksStep:last-child .stepConnector {
+    display: none;
+}
+
+@media (max-width: 1200px) {
+    .worksTimeline {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 2rem;
+    }
+
+    .stepConnector {
+        display: none;
+    }
+}
+
+@media (max-width: 768px) {
+    .howItWorks {
+        padding: 3rem 1rem;
+    }
+
+    .worksHeader {
+        margin-bottom: 2.5rem;
+    }
+
+    .worksTimeline {
+        grid-template-columns: 1fr;
+        gap: 2rem;
+    }
+
+    .worksStep {
+        padding: 0.5rem;
+    }
+
+    .stepNumber {
+        font-size: 3rem;
+    }
+
+    .stepIcon {
+        width: 70px;
+        height: 70px;
+    }
+
+    .stepTitle {
+        font-size: 1.25rem;
+    }
+}
