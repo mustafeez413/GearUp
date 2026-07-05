@@ -11,6 +11,7 @@ frontend-next/
 !.env.local.example
 
 # Google Cloud service account keys
+backend/config/agent-name-nsnl-16d61ab084a0.json
 backend/config/*.json
 !backend/config/.gitkeep
 
