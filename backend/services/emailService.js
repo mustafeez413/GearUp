@@ -14,10 +14,14 @@ console.log('[EmailService] SMTP credentials status:', {
     passExists: Boolean(pass)
 });
 
-// Initialize the Nodemailer transporter with IPv4 preference (family: 4)
+// Initialize the Nodemailer transporter with IPv4 preference (family: 4 and custom DNS lookup)
 const transporter = nodemailer.createTransport({
     service: 'gmail', // You can use other services like 'smtp.mailtrap.io' for testing
     family: 4,        // Force IPv4 to prevent IPv6 ENETUNREACH issues in cloud environments like Railway
+    lookup: (hostname, options, callback) => {
+        options.family = 4;
+        return dns.lookup(hostname, options, callback);
+    },
     auth: {
         user: user || '',
         pass: pass || ''

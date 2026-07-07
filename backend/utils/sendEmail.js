@@ -40,12 +40,16 @@ const sendEmail = async (options) => {
     throw new Error(USER_FACING_EMAIL_ERROR);
   }
 
-  console.log('[EMAIL] Creating transporter with IPv4 preference (family: 4)...');
+  console.log('[EMAIL] Creating transporter with IPv4 preference (family: 4 and custom DNS lookup)...');
   const transporter = nodemailer.createTransport({
     host: host,
     port: port,
     secure: port === 465,
     family: 4, // Force IPv4 to prevent IPv6 ENETUNREACH issues in cloud environments like Railway
+    lookup: (hostname, options, callback) => {
+      options.family = 4;
+      return dns.lookup(hostname, options, callback);
+    },
     auth: {
       user: user,
       pass: pass
