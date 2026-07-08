@@ -1,73 +1,43 @@
-const nodemailer = require('nodemailer');
-const dns = require('dns');
-
 const USER_FACING_EMAIL_ERROR = 'Unable to send verification email. Please try again later.';
 
-function resolveEmailCredentials() {
-  const user = process.env.EMAIL_USER || process.env.SMTP_USER || '';
-  const pass =
-    process.env.EMAIL_PASS ||
-    process.env.EMAIL_APP_PASSWORD ||
-    process.env.SMTP_PASS ||
-    '';
-  const host = process.env.SMTP_HOST || 'smtp.gmail.com';
-  const port = Number(process.env.SMTP_PORT || 587);
-  const from = process.env.EMAIL_FROM || user;
-
-  return { user, pass, host, port, from };
-}
-
 const sendEmail = async (options) => {
-  const { user, pass, host, port, from } = resolveEmailCredentials();
+  const apiKey = process.env.RESEND_API_KEY;
+  const from = process.env.EMAIL_FROM || 'onboarding@resend.dev';
 
-  console.log('[EMAIL] SMTP config loaded', {
-    hostLoaded: Boolean(host),
-    userLoaded: Boolean(user),
-    passLoaded: Boolean(pass),
-    port,
-  });
+  console.log('[EMAIL] Attempting to send email to:', options.email, 'using Resend API');
 
-  if (!user || !pass) {
-    console.error(
-      '[EMAIL] Missing SMTP credentials. Expected EMAIL_USER and EMAIL_PASS (or SMTP_USER / SMTP_PASS) in environment.'
-    );
+  if (!apiKey) {
+    console.error('[EMAIL] Missing RESEND_API_KEY in environment variables.');
     throw new Error(USER_FACING_EMAIL_ERROR);
   }
 
-  const transporter = nodemailer.createTransport({
-    host: host,
-    port: port,
-    secure: port === 465,
-    family: 4, // Force IPv4 on sockets
-    lookup: (hostname, options, callback) => {
-      dns.resolve4(hostname, (err, addresses) => {
-        if (!err && addresses && addresses.length > 0) {
-          return callback(null, addresses[0], 4);
-        }
-        options.family = 4;
-        return dns.lookup(hostname, options, callback);
-      });
-    },
-    auth: {
-      user: user,
-      pass: pass
-    },
-  });
-
-  console.log('[EMAIL] Transporter created successfully');
-
   const mailOptions = {
-    from: `"GearUp Support" <${from}>`,
-    to: options.email,
+    from: from,
+    to: [options.email],
     subject: options.subject,
     html: options.html,
   };
 
   try {
-    const info = await transporter.sendMail(mailOptions);
-    console.log('[EMAIL] Send attempt succeeded', {
+    const response = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify(mailOptions),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      console.error('[EMAIL] Resend API error response:', data);
+      throw new Error(data.message || `HTTP error ${response.status}`);
+    }
+
+    console.log('[EMAIL] Send attempt succeeded via Resend', {
       to: options.email,
-      messageId: info.messageId,
+      id: data.id,
     });
   } catch (error) {
     console.error('[EMAIL] Send attempt failed:', error.message);
