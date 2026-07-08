@@ -1,11 +1,20 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
+
+const user = process.env.EMAIL_USER || process.env.SMTP_USER || '';
+const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS || '';
 
 // Initialize the Nodemailer transporter
 const transporter = nodemailer.createTransport({
     service: 'gmail', // You can use other services like 'smtp.mailtrap.io' for testing
+    family: 4,        // Force IPv4 on sockets
+    lookup: (hostname, options, callback) => {
+        options.family = 4;
+        return dns.lookup(hostname, options, callback);
+    },
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+        user: user,
+        pass: pass
     }
 });
 
@@ -17,13 +26,13 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (to, subject, html) => {
     try {
-        if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        if (!user || !pass) {
             console.warn('[EmailService] Email credentials not configured. Skipping email to:', to);
             return false;
         }
 
         const mailOptions = {
-            from: `"GearUp Marketplace" <${process.env.EMAIL_USER}>`,
+            from: `"GearUp Marketplace" <${user}>`,
             to,
             subject,
             html

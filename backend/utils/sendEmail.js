@@ -1,4 +1,5 @@
 const nodemailer = require('nodemailer');
+const dns = require('dns');
 
 const USER_FACING_EMAIL_ERROR = 'Unable to send verification email. Please try again later.';
 
@@ -34,13 +35,17 @@ const sendEmail = async (options) => {
   }
 
   const transporter = nodemailer.createTransport({
-     host: "smtp.gmail.com",
-    port: 587,
-    secure: false,
-   // family: 4,          
+    host: host,
+    port: port,
+    secure: port === 465,
+    family: 4, // Force IPv4 on sockets
+    lookup: (hostname, options, callback) => {
+      options.family = 4;
+      return dns.lookup(hostname, options, callback);
+    },
     auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS
+      user: user,
+      pass: pass
     },
   });
 
