@@ -6,7 +6,7 @@
  */
 const sendEmail = async (to, subject, html) => {
     const apiKey = process.env.RESEND_API_KEY;
-    const from = process.env.EMAIL_FROM || '"GearUp <noreply@gearupsports.me>"';
+    const from = process.env.EMAIL_FROM || 'GearUp <onboarding@resend.dev>';
 
     try {
         if (!apiKey) {

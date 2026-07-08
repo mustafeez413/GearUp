@@ -2,7 +2,7 @@ const USER_FACING_EMAIL_ERROR = 'Unable to send verification email. Please try a
 
 const sendEmail = async (options) => {
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM || '"GearUp <mustafeezurrehman977@gmail.com>"';
+  const from = process.env.EMAIL_FROM || 'GearUp <onboarding@resend.dev>';
 
   console.log('[EMAIL] Attempting to send email to:', options.email, 'using Resend API');
 
