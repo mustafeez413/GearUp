@@ -9,8 +9,13 @@ const transporter = nodemailer.createTransport({
     service: 'gmail', // You can use other services like 'smtp.mailtrap.io' for testing
     family: 4,        // Force IPv4 on sockets
     lookup: (hostname, options, callback) => {
-        options.family = 4;
-        return dns.lookup(hostname, options, callback);
+        dns.resolve4(hostname, (err, addresses) => {
+            if (!err && addresses && addresses.length > 0) {
+                return callback(null, addresses[0], 4);
+            }
+            options.family = 4;
+            return dns.lookup(hostname, options, callback);
+        });
     },
     auth: {
         user: user,
