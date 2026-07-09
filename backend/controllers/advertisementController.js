@@ -749,6 +749,11 @@ exports.deleteCampaign = async (req, res) => {
     if (!['draft', 'pending_payment', 'pending_approval', 'paused'].includes(ad.status)) {
       return res.status(400).json({ success: false, error: 'This campaign cannot be deleted' });
     }
+    // Delete from Cloudinary first
+    if (ad.customMedia) {
+      const { deleteFromUrl } = require('../utils/cloudinary');
+      await deleteFromUrl(ad.customMedia);
+    }
     await Advertisement.findByIdAndDelete(req.params.id);
     res.json({ success: true });
   } catch (err) {

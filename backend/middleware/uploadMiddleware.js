@@ -2,19 +2,7 @@ const path = require('path');
 const multer = require('multer');
 const crypto = require('crypto');
 
-// Destination folder – ensure it exists (express.static serves it)
-const uploadDir = path.join(__dirname, '..', 'uploads');
-
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => {
-    cb(null, uploadDir);
-  },
-  filename: (req, file, cb) => {
-    const ext = path.extname(file.originalname).toLowerCase();
-    const name = `product-${Date.now()}-${crypto.randomBytes(4).toString('hex')}${ext}`;
-    cb(null, name);
-  }
-});
+const storage = multer.memoryStorage();
 
 // Allowed MIME types
 const ALLOWED_MIME = ['image/jpeg', 'image/png', 'image/webp'];

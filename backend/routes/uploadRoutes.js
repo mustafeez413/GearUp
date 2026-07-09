@@ -3,16 +3,9 @@ const router = express.Router();
 const { protect } = require('../middleware/authMiddleware');
 const multer = require('multer');
 const path = require('path');
+const { uploadToCloudinary } = require('../utils/cloudinary');
 
-const storage = multer.diskStorage({
-    destination: function (req, file, cb) {
-        cb(null, 'uploads/');
-    },
-    filename: function (req, file, cb) {
-        const prefix = req.query.type === 'proof' ? 'proof-' : 'gearup-';
-        cb(null, prefix + Date.now() + path.extname(file.originalname));
-    }
-});
+const storage = multer.memoryStorage();
 
 const upload = multer({
     storage,
@@ -29,7 +22,7 @@ const upload = multer({
 });
 
 router.post('/', protect, (req, res) => {
-    upload.single('file')(req, res, (err) => {
+    upload.single('file')(req, res, async (err) => {
         if (err) {
             return res.status(400).json({
                 success: false,
@@ -41,11 +34,21 @@ router.post('/', protect, (req, res) => {
             return res.status(400).json({ success: false, error: 'No file uploaded' });
         }
 
-        return res.status(200).json({
-            success: true,
-            filePath: `/uploads/${req.file.filename}`,
-            url: `/uploads/${req.file.filename}`
-        });
+        try {
+            const folder = req.query.type === 'proof' ? 'proofs' : 'gearup';
+            const uploadResult = await uploadToCloudinary(req.file.buffer, folder);
+
+            return res.status(200).json({
+                success: true,
+                filePath: uploadResult.secure_url,
+                url: uploadResult.secure_url
+            });
+        } catch (uploadErr) {
+            return res.status(500).json({
+                success: false,
+                error: uploadErr.message || 'Failed to upload to Cloudinary'
+            });
+        }
     });
 });
 

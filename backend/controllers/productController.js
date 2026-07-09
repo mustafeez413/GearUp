@@ -1,5 +1,6 @@
 const Product = require('../models/Product');
 const mongoose = require('mongoose');
+const { uploadToCloudinary, deleteFromUrl } = require('../utils/cloudinary');
 const {
     ACCESS_DENIED_OWN_PRODUCT,
     applyManufacturerBuyingListFilter,
@@ -169,6 +170,16 @@ exports.updateProduct = async (req, res, next) => {
             return res.status(401).json({ success: false, error: 'Not authorized to update this product' });
         }
 
+        // Clean up removed images from Cloudinary
+        if (req.body.images && Array.isArray(req.body.images)) {
+            const newImages = req.body.images;
+            const oldImages = product.images || [];
+            const removedImages = oldImages.filter(img => !newImages.includes(img));
+            for (const imgUrl of removedImages) {
+                await deleteFromUrl(imgUrl);
+            }
+        }
+
         const updatePayload = { ...req.body };
         const packagingPayload = {
             bulkUnit: updatePayload.bulkUnit !== undefined ? updatePayload.bulkUnit : product.bulkUnit,
@@ -225,7 +236,8 @@ exports.uploadImage = async (req, res) => {
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file uploaded' });
     }
-    const filePath = `/uploads/${req.file.filename}`;
+    const result = await uploadToCloudinary(req.file.buffer, 'products');
+    const filePath = result.secure_url;
     return res.status(201).json({ success: true, path: filePath });
   } catch (err) {
     console.error('Upload error:', err);
@@ -244,6 +256,13 @@ exports.deleteProduct = async (req, res, next) => {
         const productOwnerId = product.manufacturer || product.seller;
         if (!productOwnerId || (productOwnerId.toString() !== req.user.id.toString() && req.user.role !== 'admin')) {
             return res.status(401).json({ success: false, error: 'Not authorized to delete this product' });
+        }
+
+        // Delete from Cloudinary first
+        if (product.images && product.images.length > 0) {
+            for (const imgUrl of product.images) {
+                await deleteFromUrl(imgUrl);
+            }
         }
 
         await product.deleteOne();

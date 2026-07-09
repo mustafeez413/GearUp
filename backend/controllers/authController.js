@@ -9,6 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const { validateRegistrationPayload } = require('../utils/registrationValidation');
 const { serializeUserForClient } = require('../utils/userAvatar');
+const { uploadToCloudinary, deleteFromUrl } = require('../utils/cloudinary');
 
 const ALLOWED_BUSINESS_DOCUMENT_MIMES = new Set(['application/pdf', 'image/jpeg', 'image/png']);
 const ALLOWED_BUSINESS_DOCUMENT_EXTENSIONS = ['.pdf', '.jpg', '.jpeg', '.png'];
@@ -21,11 +22,6 @@ function validateUploadedBusinessDocument(file) {
     const extension = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_BUSINESS_DOCUMENT_EXTENSIONS.includes(extension) || !ALLOWED_BUSINESS_DOCUMENT_MIMES.has(file.mimetype)) {
         return 'Please upload a valid PDF, JPG, JPEG, or PNG file.';
-    }
-
-    const absolutePath = path.join(__dirname, '..', 'uploads', file.filename);
-    if (!fs.existsSync(absolutePath)) {
-        return 'Please upload your NTN Registration Document before continuing.';
     }
 
     return '';
@@ -341,8 +337,17 @@ exports.submitVerification = async (req, res, next) => {
             return res.status(400).json({ success: false, error: documentError });
         }
 
-        const { taxId, address, phone, website, city, sellerType } = req.body;
-        const businessLicense = `/uploads/${req.file.filename}`;
+                const { taxId, address, phone, website, city, sellerType } = req.body;
+
+        // Delete old license if exists
+        const userBefore = await User.findById(req.user.id);
+        if (userBefore && userBefore.businessDetails?.businessLicense) {
+            await deleteFromUrl(userBefore.businessDetails.businessLicense);
+        }
+
+        // Upload new license to Cloudinary
+        const uploadResult = await uploadToCloudinary(req.file.buffer, 'documents');
+        const businessLicense = uploadResult.secure_url;
 
         const updateData = {
             'businessDetails.taxId': taxId,
@@ -390,6 +395,11 @@ exports.getVerificationDocument = async (req, res, next) => {
 
         if (!licensePath) {
             return res.status(404).json({ success: false, error: 'No verification document found.' });
+        }
+
+        // If it's a Cloudinary URL, redirect to it
+        if (licensePath.startsWith('http')) {
+            return res.redirect(licensePath);
         }
 
         const filename = path.basename(licensePath);
@@ -663,16 +673,18 @@ exports.updateProfile = async (req, res, next) => {
         }
 
         if (req.file) {
-            fieldsToUpdate.avatar = `/uploads/${req.file.filename}`;
+            // Delete old avatar if exists
+            const userBefore = await User.findById(req.user.id);
+            if (userBefore && userBefore.avatar) {
+                await deleteFromUrl(userBefore.avatar);
+            }
+            // Upload new avatar to Cloudinary
+            const uploadResult = await uploadToCloudinary(req.file.buffer, 'avatars');
+            fieldsToUpdate.avatar = uploadResult.secure_url;
         } else if (req.body.removeAvatar === 'true') {
             const userBefore = await User.findById(req.user.id);
             if (userBefore && userBefore.avatar) {
-                const fs = require('fs');
-                const path = require('path');
-                const filePath = path.join(__dirname, '..', userBefore.avatar);
-                fs.unlink(filePath, (err) => {
-                    // Ignore file missing errors
-                });
+                await deleteFromUrl(userBefore.avatar);
             }
             fieldsToUpdate.avatar = '';
         }
