@@ -503,10 +503,11 @@ exports.forgotPassword = async (req, res, next) => {
         await user.save({ validateBeforeSave: false });
 
         // Create reset url
-        // In development, we use localhost:3000. In production, we'd use the actual domain.
+        // In development, we use localhost:3000. In production, we use the FRONTEND_URL environment variable or fallback to the current host.
         const protocol = req.protocol === 'https' ? 'https' : 'http';
         const host = req.get('host').includes('localhost') ? 'localhost:3000' : req.get('host');
-        const resetUrl = `${protocol}://${host}/reset-password?token=${resetToken}`;
+        const frontendUrl = process.env.FRONTEND_URL || `${protocol}://${host}`;
+        const resetUrl = `${frontendUrl.replace(/\/$/, '')}/reset-password?token=${resetToken}`;
 
         const message = `
             <div style="font-family: sans-serif; padding: 20px; color: #333; max-width: 600px; margin: auto; border: 1px solid #eee; border-radius: 10px;">
