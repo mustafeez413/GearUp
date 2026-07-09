@@ -30,7 +30,7 @@ import {
     DOZEN_PRICING_MESSAGES,
     calculateDozenPriceFromSingle,
     deriveSinglePriceFromDozen,
-    validateSingleBatPrice,
+    validateSingleUnitPrice,
     isDozenPricingMode,
 } from '@/lib/dozenPricing';
 import { formatPKR } from '@/lib/financeUtils';
@@ -132,7 +132,7 @@ const ProductForm = ({ id }) => {
     const [uploadingImage, setUploadingImage] = useState(false);
     const [imageError, setImageError] = useState(null);
     const fileInputRef = useRef(null);
-    const [singleBatPrice, setSingleBatPrice] = useState('');
+    const [singleUnitPrice, setSingleUnitPrice] = useState('');
     const [brandName, setBrandName] = useState('');
     const [skuUniqueSuffix, setSkuUniqueSuffix] = useState(null);
     const [existingSkus, setExistingSkus] = useState([]);
@@ -148,9 +148,9 @@ const ProductForm = ({ id }) => {
             errors.description = 'Product specification is required';
         }
         if (isDozenPricingMode(formData.bulkUnit)) {
-            const singleValidation = validateSingleBatPrice(singleBatPrice);
+            const singleValidation = validateSingleUnitPrice(singleUnitPrice);
             if (!singleValidation.valid) {
-                errors.singleBatPrice = singleValidation.error;
+                errors.singleUnitPrice = singleValidation.error;
             } else if (!formData.pricePerBulkUnit || Number(formData.pricePerBulkUnit) <= 0) {
                 errors.pricePerBulkUnit = 'Bulk price is required';
             }
@@ -237,7 +237,7 @@ const ProductForm = ({ id }) => {
         formData.bulkUnit,
         formData.packSize
     );
-    const dozenPreviewTotal = dozenPricingMode ? calculateDozenPriceFromSingle(singleBatPrice) : null;
+    const dozenPreviewTotal = dozenPricingMode ? calculateDozenPriceFromSingle(singleUnitPrice) : null;
 
     const fetchExistingSkus = useCallback(async () => {
         try {
@@ -293,9 +293,9 @@ const ProductForm = ({ id }) => {
                     setBrandName(parsedSku.brandCode);
                 }
                 if (isDozenPricingMode(product.bulkUnit || 'Dozen') && product.pricePerBulkUnit) {
-                    setSingleBatPrice(String(deriveSinglePriceFromDozen(product.pricePerBulkUnit) || ''));
+                    setSingleUnitPrice(String(deriveSinglePriceFromDozen(product.pricePerBulkUnit) || ''));
                 } else {
-                    setSingleBatPrice('');
+                    setSingleUnitPrice('');
                 }
             } else {
                 setError('Failed to fetch product details.');
@@ -381,9 +381,9 @@ const ProductForm = ({ id }) => {
                     : '';
 
             if (value === 'Dozen') {
-                setSingleBatPrice(singleForDozen !== '' ? String(singleForDozen) : '');
+                setSingleUnitPrice(singleForDozen !== '' ? String(singleForDozen) : '');
             } else {
-                setSingleBatPrice('');
+                setSingleUnitPrice('');
             }
 
             setFormData(prev => ({
@@ -424,9 +424,9 @@ const ProductForm = ({ id }) => {
         if (built.sku) setFormData((prev) => ({ ...prev, sku: built.sku }));
     };
 
-    const handleSingleBatPriceChange = (e) => {
+    const handleSingleUnitPriceChange = (e) => {
         const { value } = e.target;
-        setSingleBatPrice(value);
+        setSingleUnitPrice(value);
         setFormData(prev => ({
             ...prev,
             pricePerBulkUnit: calculateDozenPriceFromSingle(value),
@@ -485,7 +485,7 @@ const ProductForm = ({ id }) => {
 
             let finalPricePerBulkUnit = Number(formData.pricePerBulkUnit);
             if (isDozenPricingMode(formData.bulkUnit)) {
-                const singleValidation = validateSingleBatPrice(singleBatPrice);
+                const singleValidation = validateSingleUnitPrice(singleUnitPrice);
                 if (!singleValidation.valid) {
                     setError(singleValidation.error || 'Please resolve all validation errors before listing product.');
                     setLoading(false);
@@ -614,10 +614,10 @@ const ProductForm = ({ id }) => {
 
             {/* Main Dynamic Layout Grid */}
             <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                
+
                 {/* LEFT COLUMN: Product Specifications & Uploads */}
                 <div className="lg:col-span-2 space-y-6">
-                    
+
                     {/* Basic product specifications form card */}
                     <div className="bg-[#FFFFFF] p-6 sm:p-7 rounded-[20px] border border-[#E5E7EB] space-y-6" style={{ boxShadow: '0 6px 20px rgba(15,23,42,0.04)' }}>
                         <div className="flex items-center gap-3 border-b border-[#F1F5F9] pb-4">
@@ -637,11 +637,10 @@ const ProductForm = ({ id }) => {
                                     name="name"
                                     value={formData.name}
                                     onChange={handleChange}
-                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${
-                                        validationErrors.name 
-                                            ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]' 
-                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                    }`}
+                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.name
+                                        ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                        : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                        }`}
                                     placeholder="Pro Grade Carbon Bat, Premium Football, etc."
                                     required
                                 />
@@ -710,11 +709,10 @@ const ProductForm = ({ id }) => {
                                     name="sku"
                                     value={formData.sku}
                                     onChange={handleChange}
-                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] font-mono tracking-wide ${
-                                        validationErrors.sku
-                                            ? 'border-[#EF4444] focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
-                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                    }`}
+                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] font-mono tracking-wide ${validationErrors.sku
+                                        ? 'border-[#EF4444] focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                        : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                        }`}
                                     placeholder={SKU_FORMAT_EXAMPLE}
                                 />
                                 {validationErrors.sku && (
@@ -736,11 +734,10 @@ const ProductForm = ({ id }) => {
                                     value={formData.description}
                                     onChange={handleChange}
                                     rows="4"
-                                    className={`w-full px-4 py-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] resize-none ${
-                                        validationErrors.description 
-                                            ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]' 
-                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                    }`}
+                                    className={`w-full px-4 py-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] resize-none ${validationErrors.description
+                                        ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                        : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                        }`}
                                     placeholder="Material, size, durability, packaging details..."
                                     maxLength="1000"
                                     required
@@ -772,7 +769,7 @@ const ProductForm = ({ id }) => {
 
                         <div className="space-y-4">
                             {/* Drag and Drop Zone */}
-                            <div 
+                            <div
                                 onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
                                 onDragLeave={(e) => { e.preventDefault(); setIsDragging(false); }}
                                 onDrop={(e) => {
@@ -780,11 +777,10 @@ const ProductForm = ({ id }) => {
                                     setIsDragging(false);
                                     processFiles(e.dataTransfer.files);
                                 }}
-                                className={`border-2 border-dashed rounded-[18px] p-8 transition-all duration-250 flex flex-col items-center justify-center text-center cursor-pointer ${
-                                    isDragging 
-                                        ? 'border-[#00A878] bg-[#F8FFFB]' 
-                                        : 'border-[#CBD5E1] bg-[#FAFCFD] hover:bg-[#F8FFFB] hover:border-[#00A878]'
-                                }`}
+                                className={`border-2 border-dashed rounded-[18px] p-8 transition-all duration-250 flex flex-col items-center justify-center text-center cursor-pointer ${isDragging
+                                    ? 'border-[#00A878] bg-[#F8FFFB]'
+                                    : 'border-[#CBD5E1] bg-[#FAFCFD] hover:bg-[#F8FFFB] hover:border-[#00A878]'
+                                    }`}
                                 onClick={() => document.getElementById('file-upload-input').click()}
                             >
                                 <input
@@ -845,10 +841,10 @@ const ProductForm = ({ id }) => {
                             {formData.images.length > 0 ? (
                                 <div className="mt-4 max-w-xs">
                                     <div className="relative aspect-[4/3] bg-[#F8FAFC] rounded-[14px] border border-[#E2E8F0] overflow-hidden group hover:shadow-md transition-all duration-200">
-                                        <img 
-                                            src={resolveProductImageUrl(formData.images[0])} 
-                                            alt="Primary cover preview" 
-                                            className="w-full h-full object-cover" 
+                                        <img
+                                            src={resolveProductImageUrl(formData.images[0])}
+                                            alt="Primary cover preview"
+                                            className="w-full h-full object-cover"
                                             onError={(e) => {
                                                 e.currentTarget.onerror = null;
                                                 e.currentTarget.src = resolveProductImageUrl(null);
@@ -891,10 +887,10 @@ const ProductForm = ({ id }) => {
 
                         <div className="aspect-[4/3] rounded-[16px] bg-[#F8FAFC] border border-[#E2E8F0] overflow-hidden relative flex items-center justify-center text-[#CBD5E1]">
                             {formData.images.length > 0 ? (
-                                <img 
-                                    src={resolveProductImageUrl(formData.images[0])} 
-                                    alt="Live Preview representation" 
-                                    className="w-full h-full object-contain p-4" 
+                                <img
+                                    src={resolveProductImageUrl(formData.images[0])}
+                                    alt="Live Preview representation"
+                                    className="w-full h-full object-contain p-4"
                                     onError={(e) => {
                                         e.currentTarget.onerror = null;
                                         e.currentTarget.src = resolveProductImageUrl(null);
@@ -931,7 +927,7 @@ const ProductForm = ({ id }) => {
                                 <div className="rounded-[14px] border border-[#E8FFF5] bg-[#F8FFFC] px-3.5 py-3 space-y-1.5">
                                     <div className="flex items-center justify-between text-[12px] font-[600] text-[#334155]">
                                         <span className="text-[#64748B]">Single Unit</span>
-                                        <span>{formatPKR(Number(singleBatPrice))}</span>
+                                        <span>{formatPKR(Number(singleUnitPrice))}</span>
                                     </div>
                                     <div className="flex items-center justify-between text-[12px] font-[700] text-[#0F172A]">
                                         <span className="text-[#64748B]">1 Dozen (12 Units)</span>
@@ -961,7 +957,7 @@ const ProductForm = ({ id }) => {
                             <div className="w-10 h-10 rounded-[12px] bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center text-[#64748B]">
                                 <Banknote size={18} />
                             </div>
-                            <h3 className="font-sans text-[20px] sm:text-[24px] font-[700] text-[#0F172A] tracking-tight">Bulk Wholesale Details</h3>
+                            <h3 className="font-sans text-[20px] sm:text-[24px] font-[700] text-[#0F172A] tracking-tight">Bulk Sales Details</h3>
                         </div>
 
                         <div className="space-y-5">
@@ -995,13 +991,12 @@ const ProductForm = ({ id }) => {
                                         max="999"
                                         readOnly={packSizeReadOnly}
                                         disabled={packSizeReadOnly}
-                                        className={`w-full h-[52px] px-4 border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[15px] ${
-                                            packSizeReadOnly
-                                                ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] cursor-not-allowed'
-                                                : validationErrors.packSize
-                                                    ? 'bg-[#FFFFFF] border-[#EF4444] focus:ring-[#EF4444]/10 focus:border-[#EF4444] text-[#0F172A]'
-                                                    : 'bg-[#FFFFFF] border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8] text-[#0F172A]'
-                                        }`}
+                                        className={`w-full h-[52px] px-4 border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[15px] ${packSizeReadOnly
+                                            ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#64748B] cursor-not-allowed'
+                                            : validationErrors.packSize
+                                                ? 'bg-[#FFFFFF] border-[#EF4444] focus:ring-[#EF4444]/10 focus:border-[#EF4444] text-[#0F172A]'
+                                                : 'bg-[#FFFFFF] border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8] text-[#0F172A]'
+                                            }`}
                                         required
                                     />
                                     {packSizeReadOnly ? (
@@ -1038,27 +1033,26 @@ const ProductForm = ({ id }) => {
                                 <>
                                     <div>
                                         <label className="block font-sans text-[13px] font-[600] text-[#334155] mb-1.5">
-                                            Single Bat Price (PKR) <span className="text-[#00A878]">*</span>
+                                            Single Unit Price (PKR) <span className="text-[#00A878]">*</span>
                                         </label>
                                         <input
                                             type="number"
-                                            name="singleBatPrice"
-                                            value={singleBatPrice}
-                                            onChange={handleSingleBatPriceChange}
+                                            name="singleUnitPrice"
+                                            value={singleUnitPrice}
+                                            onChange={handleSingleUnitPriceChange}
                                             min="1"
                                             step="1"
                                             inputMode="numeric"
-                                            className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${
-                                                validationErrors.singleBatPrice
-                                                    ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
-                                                    : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                            }`}
+                                            className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.singleUnitPrice
+                                                ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                                : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                                }`}
                                             placeholder="95000"
                                             required
                                         />
-                                        {validationErrors.singleBatPrice && (
+                                        {validationErrors.singleUnitPrice && (
                                             <p className="text-[#EF4444] text-[11px] mt-1.5 font-[500] flex items-center gap-1.5">
-                                                <AlertCircle size={12} /> {validationErrors.singleBatPrice}
+                                                <AlertCircle size={12} /> {validationErrors.singleUnitPrice}
                                             </p>
                                         )}
                                     </div>
@@ -1088,7 +1082,7 @@ const ProductForm = ({ id }) => {
                                             </p>
                                             <div className="flex items-center justify-between text-[13px] font-[600] text-[#334155]">
                                                 <span>Single Unit</span>
-                                                <span className="text-[#0F172A]">{formatPKR(Number(singleBatPrice))}</span>
+                                                <span className="text-[#0F172A]">{formatPKR(Number(singleUnitPrice))}</span>
                                             </div>
                                             <div className="flex items-center justify-between text-[13px] font-[700] text-[#0F172A]">
                                                 <span>1 Dozen (12 Units)</span>
@@ -1108,11 +1102,10 @@ const ProductForm = ({ id }) => {
                                         value={formData.pricePerBulkUnit}
                                         onChange={handleChange}
                                         min="0"
-                                        className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${
-                                            validationErrors.pricePerBulkUnit
-                                                ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
-                                                : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                        }`}
+                                        className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.pricePerBulkUnit
+                                            ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                            }`}
                                         placeholder="0"
                                         required
                                     />
@@ -1134,11 +1127,10 @@ const ProductForm = ({ id }) => {
                                     value={formData.stock}
                                     onChange={handleChange}
                                     min="0"
-                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${
-                                        validationErrors.stock 
-                                            ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]' 
-                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                    }`}
+                                    className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.stock
+                                        ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                        : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                        }`}
                                     placeholder="0"
                                     required
                                 />
@@ -1177,7 +1169,7 @@ const ProductForm = ({ id }) => {
                                     </>
                                 )}
                             </button>
-                            
+
                             <Link
                                 href="/manufacturer/products"
                                 className="block w-full text-center py-2 text-[#64748B] font-sans font-[500] text-[13px] hover:text-[#0F172A] transition-colors"
