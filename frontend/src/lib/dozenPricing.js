@@ -29,7 +29,7 @@ export function calculateDozenPriceFromSingle(singlePrice) {
   return parsed * DOZEN_UNIT_COUNT;
 }
 
-export function validateSingleBatPrice(value) {
+export function validateSingleUnitPrice(value) {
   if (value === '' || value === null || value === undefined) {
     return { valid: false, error: DOZEN_PRICING_MESSAGES.singleRequired };
   }

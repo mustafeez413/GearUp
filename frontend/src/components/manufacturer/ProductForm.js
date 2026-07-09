@@ -238,6 +238,10 @@ const ProductForm = ({ id }) => {
         formData.packSize
     );
     const dozenPreviewTotal = dozenPricingMode ? calculateDozenPriceFromSingle(singleUnitPrice) : null;
+    const isBulkPriceValid = formData.pricePerBulkUnit !== '' && !isNaN(formData.pricePerBulkUnit) && Number(formData.pricePerBulkUnit) > 0;
+    const bulkUnitSinglePricePreview = !dozenPricingMode && isBulkPriceValid && Number(formData.packSize) > 0
+        ? Number(formData.pricePerBulkUnit) / Number(formData.packSize)
+        : null;
 
     const fetchExistingSkus = useCallback(async () => {
         try {
@@ -375,22 +379,23 @@ const ProductForm = ({ id }) => {
                 sku: value.toUpperCase()
             }));
         } else if (name === 'bulkUnit') {
+            const isSwitchingToDozen = value === 'Dozen';
             const singleForDozen =
-                value === 'Dozen' && formData.pricePerBulkUnit
+                isSwitchingToDozen && formData.pricePerBulkUnit
                     ? deriveSinglePriceFromDozen(formData.pricePerBulkUnit)
-                    : '';
+                    : singleUnitPrice;
 
-            if (value === 'Dozen') {
-                setSingleUnitPrice(singleForDozen !== '' ? String(singleForDozen) : '');
-            } else {
-                setSingleUnitPrice('');
-            }
+            setSingleUnitPrice(
+                isSwitchingToDozen
+                    ? singleForDozen !== '' ? String(singleForDozen) : ''
+                    : singleUnitPrice
+            );
 
             setFormData(prev => ({
                 ...prev,
                 bulkUnit: value,
                 packSize: resolvePackSizeForBulkUnit(value, prev.packSize),
-                ...(value === 'Dozen' && singleForDozen !== ''
+                ...(isSwitchingToDozen && singleForDozen !== ''
                     ? { pricePerBulkUnit: singleForDozen * 12 }
                     : {}),
             }));
@@ -1092,29 +1097,47 @@ const ProductForm = ({ id }) => {
                                     )}
                                 </>
                             ) : (
-                                <div>
-                                    <label className="block font-sans text-[13px] font-[600] text-[#334155] mb-1.5">
-                                        Price Per {formData.bulkUnit} (PKR) <span className="text-[#00A878]">*</span>
-                                    </label>
-                                    <input
-                                        type="number"
-                                        name="pricePerBulkUnit"
-                                        value={formData.pricePerBulkUnit}
-                                        onChange={handleChange}
-                                        min="0"
-                                        className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.pricePerBulkUnit
-                                            ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
-                                            : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
-                                            }`}
-                                        placeholder="0"
-                                        required
-                                    />
-                                    {validationErrors.pricePerBulkUnit && (
-                                        <p className="text-[#EF4444] text-[11px] mt-1.5 font-[500] flex items-center gap-1.5">
-                                            <AlertCircle size={12} /> {validationErrors.pricePerBulkUnit}
-                                        </p>
+                                <>
+                                    <div>
+                                        <label className="block font-sans text-[13px] font-[600] text-[#334155] mb-1.5">
+                                            Price Per {formData.bulkUnit} (PKR) <span className="text-[#00A878]">*</span>
+                                        </label>
+                                        <input
+                                            type="number"
+                                            name="pricePerBulkUnit"
+                                            value={formData.pricePerBulkUnit}
+                                            onChange={handleChange}
+                                            min="0"
+                                            className={`w-full h-[52px] px-4 bg-[#FFFFFF] border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] placeholder-[#94A3B8] text-[15px] ${validationErrors.pricePerBulkUnit
+                                                ? 'border-[#EF4444] bg-[#FEF2F2]/30 focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                                : 'border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8]'
+                                                }`}
+                                            placeholder="0"
+                                            required
+                                        />
+                                        {validationErrors.pricePerBulkUnit && (
+                                            <p className="text-[#EF4444] text-[11px] mt-1.5 font-[500] flex items-center gap-1.5">
+                                                <AlertCircle size={12} /> {validationErrors.pricePerBulkUnit}
+                                            </p>
+                                        )}
+                                    </div>
+
+                                    {bulkUnitSinglePricePreview !== null && (
+                                        <div className="rounded-[16px] border border-[#E2E8F0] bg-[#F8FAFC] p-4 space-y-2">
+                                            <p className="text-[10px] font-[700] uppercase tracking-[0.12em] text-[#64748B]">
+                                                Pricing Preview
+                                            </p>
+                                            <div className="flex items-center justify-between text-[13px] font-[600] text-[#334155]">
+                                                <span>Single Unit</span>
+                                                <span className="text-[#0F172A]">{formatPKR(bulkUnitSinglePricePreview)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between text-[13px] font-[700] text-[#0F172A]">
+                                                <span>1 {formData.bulkUnit}</span>
+                                                <span className="text-[#00A878]">{formatPKR(Number(formData.pricePerBulkUnit))}</span>
+                                            </div>
+                                        </div>
                                     )}
-                                </div>
+                                </>
                             )}
 
                             <div>
