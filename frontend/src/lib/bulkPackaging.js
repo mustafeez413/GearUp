@@ -1,6 +1,6 @@
 /** Shared bulk packaging rules for product create/edit flows. */
 
-export const BULK_UNIT_OPTIONS = ['Dozen', 'Pack', 'Box', 'Carton', 'Unit Set'];
+export const BULK_UNIT_OPTIONS = ['Dozen', 'Pack', 'Box', 'Carton'];
 
 export const DOZEN_PACK_SIZE = 12;
 export const MIN_PACK_SIZE = 1;
