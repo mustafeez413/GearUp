@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense } from 'react';
 import { useAuth } from '@/context/AuthContext';
 import { getApiBaseUrl } from '@/lib/api';
 import {
@@ -43,7 +43,7 @@ function buildProfileFormState(user) {
     };
 }
 
-const UserProfile = ({ isDashboard = false }) => {
+const UserProfileInner = ({ isDashboard = false }) => {
     const { user, updateUser } = useAuth();
     const { isReadOnlyMode, guardAction } = useReadOnlyMode();
     const [isEditing, setIsEditing] = useState(false);
@@ -1194,4 +1194,14 @@ const UserProfile = ({ isDashboard = false }) => {
     );
 };
 
-export default UserProfile;
+export default function UserProfile(props) {
+    return (
+        <Suspense fallback={
+            <div className="flex items-center justify-center min-h-[400px]">
+                <div className="w-8 h-8 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin"></div>
+            </div>
+        }>
+            <UserProfileInner {...props} />
+        </Suspense>
+    );
+}
