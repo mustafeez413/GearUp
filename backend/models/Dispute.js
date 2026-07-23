@@ -62,6 +62,8 @@ const DisputeSchema = new mongoose.Schema({
     },
     sellerResponse: {
         message: String,
+        evidence: String,
+        evidenceImages: [String],
         respondedAt: Date
     },
     sellerRespondDeadline: Date,

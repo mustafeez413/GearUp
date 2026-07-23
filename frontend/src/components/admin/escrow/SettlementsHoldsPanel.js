@@ -722,7 +722,7 @@ export default function SettlementsHoldsPanel({ transactions = [], walletEscrows
 
             <div className="flex flex-col sm:flex-row gap-2">
               <div className="relative flex-1 sm:max-w-xs">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={15} />
+                <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={15} />
                 <input
                   type="text"
                   value={search}
@@ -732,7 +732,7 @@ export default function SettlementsHoldsPanel({ transactions = [], walletEscrows
                     setHoldPage(1);
                   }}
                   placeholder="Search settlements or holds…"
-                  className="w-full pl-9 pr-3 py-2.5 border border-[#E2E8F0] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#10B981]/15 focus:border-[#10B981]"
+                  className="pl-3 pr-9 w-full py-2.5 border border-[#E2E8F0] rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#10B981]/15 focus:border-[#10B981]"
                 />
               </div>
               {section === 'settlements' && (

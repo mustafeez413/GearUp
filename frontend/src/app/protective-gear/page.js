@@ -60,13 +60,13 @@ const ProtectiveGear = () => {
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 mb-12 shadow-xl shadow-slate-200/50">
                         <div className="flex flex-col lg:flex-row gap-6">
                             <div className="flex-1 relative">
-                                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
+                                <Search className="absolute right-6 top-1/2 -translate-y-1/2 text-slate-400" size={24} />
                                 <input
                                     type="text"
                                     placeholder="Search certified protection..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-16 pr-6 py-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:ring-4 focus:ring-emerald-50/50 focus:border-emerald-500 focus:bg-white outline-none transition-all font-body text-xl"
+                                    className="pl-6 pr-16 w-full py-5 bg-slate-50 border-2 border-slate-50 rounded-2xl focus:ring-4 focus:ring-emerald-50/50 focus:border-emerald-500 focus:bg-white outline-none transition-all font-body text-xl"
                                 />
                             </div>
                             <div className="flex gap-3">

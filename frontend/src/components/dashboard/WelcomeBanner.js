@@ -110,7 +110,7 @@ const WelcomeBanner = ({
 
   return (
     <div
-      className="relative flex flex-col justify-center rounded-[24px] p-[28px] sm:p-[36px] min-h-[220px] md:min-h-[280px] lg:min-h-[320px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-visible group transition-all duration-500 hover:shadow-[0_24px_60px_rgba(0,0,0,0.2)]"
+      className="relative flex flex-col justify-center rounded-[24px] p-[28px] sm:p-[36px] h-full min-h-[220px] md:min-h-[280px] lg:min-h-[320px] shadow-[0_20px_50px_rgba(0,0,0,0.15)] overflow-visible group transition-all duration-500 hover:shadow-[0_24px_60px_rgba(0,0,0,0.2)]"
       style={{ background: 'linear-gradient(135deg, #07141A 0%, #062B20 100%)' }}
     >
       {/* Background artwork layer — clip decorative layers only */}
@@ -160,7 +160,7 @@ const WelcomeBanner = ({
         </div>
 
         {/* Heading */}
-        <h1 className="font-[800] text-white tracking-tight leading-tight mb-3 break-words" style={{ fontSize: 'clamp(28px, 4vw, 44px)', maxWidth: '100%', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
+        <h1 className="welcome-banner-title font-[800] text-white tracking-tight leading-tight mb-3 break-words" style={{ color: '#ffffff', fontSize: 'clamp(28px, 4vw, 44px)', maxWidth: '100%', wordWrap: 'break-word', overflowWrap: 'break-word' }}>
           {greeting}, {displayName} 👋
         </h1>
 

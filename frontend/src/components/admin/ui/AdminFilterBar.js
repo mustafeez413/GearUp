@@ -21,13 +21,13 @@ export default function AdminFilterBar({
         <div className="sm:col-span-2 lg:col-span-2">
           <label className={labelClass}>Search</label>
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={15} />
+            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={15} />
             <input
               type="text"
               value={search}
               onChange={(e) => onSearchChange(e.target.value)}
               placeholder={searchPlaceholder}
-              className={`${inputClass} pl-9`}
+              className={`${inputClass} `}
             />
           </div>
         </div>

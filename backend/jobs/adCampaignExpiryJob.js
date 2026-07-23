@@ -1,4 +1,4 @@
-const { expireDueCampaigns } = require('../services/adCampaignLifecycleService');
+const { expireDueCampaigns, activateScheduledCampaigns } = require('../services/adCampaignLifecycleService');
 
 const DEFAULT_INTERVAL_MS = 15 * 60 * 1000;
 const INTERVAL_MS = Math.max(
@@ -13,11 +13,15 @@ async function runExpiryCheck(source = 'scheduled') {
   if (isRunning) return 0;
   isRunning = true;
   try {
-    const count = await expireDueCampaigns();
-    if (count > 0) {
-      console.log(`[ads-expiry-job] ${source}: expired ${count} campaign(s)`);
+    const expiredCount = await expireDueCampaigns();
+    if (expiredCount > 0) {
+      console.log(`[ads-expiry-job] ${source}: expired ${expiredCount} campaign(s)`);
     }
-    return count;
+    const activatedCount = await activateScheduledCampaigns();
+    if (activatedCount > 0) {
+      console.log(`[ads-expiry-job] ${source}: activated ${activatedCount} scheduled campaign(s)`);
+    }
+    return expiredCount + activatedCount;
   } catch (err) {
     console.error(`[ads-expiry-job] ${source} failed:`, err.message);
     return 0;

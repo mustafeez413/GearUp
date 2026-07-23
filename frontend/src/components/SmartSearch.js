@@ -34,13 +34,13 @@ const SmartSearch = () => {
                 {/* Intelligent Search */}
                 <div className="max-w-4xl mx-auto mb-8">
                     <div className="relative">
-                        <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 text-neutral-400" size={24} />
+                        <Search className="absolute right-6 top-1/2 transform -translate-y-1/2 text-neutral-400" size={24} />
                         <input
                             type="text"
                             placeholder="Search manufacturers, products, or production capabilities..."
                             value={searchQuery}
                             onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-16 pr-6 py-5 text-lg border-2 border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-deep focus:border-transparent font-body shadow-sm hover:shadow-md transition-shadow outline-none"
+                            className="pl-6 pr-16 w-full py-5 text-lg border-2 border-neutral-200 rounded-xl focus:ring-2 focus:ring-primary-deep focus:border-transparent font-body shadow-sm hover:shadow-md transition-shadow outline-none"
                         />
                         <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
                             <Sparkles className="text-primary-deep/60" size={20} />

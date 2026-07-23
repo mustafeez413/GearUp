@@ -51,11 +51,16 @@ function SponsoredBadge({ isSponsored }) {
   );
 }
 
-export default function AdminProductsPanel() {
+export default function AdminProductsPanel({ overrideProducts }) {
   const [products, setProducts] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!overrideProducts);
 
   useEffect(() => {
+    if (overrideProducts) {
+      setProducts(overrideProducts);
+      setLoading(false);
+      return;
+    }
     const token = localStorage.getItem('token');
     fetch(`${getApiBaseUrl()}/api/products`, { headers: { Authorization: `Bearer ${token}` } })
       .then((r) => r.json())
@@ -63,7 +68,7 @@ export default function AdminProductsPanel() {
         if (json.success) setProducts(Array.isArray(json.data) ? json.data : []);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [overrideProducts]);
 
   if (loading) {
     return <div className="h-64 rounded-2xl bg-[#F8FAFC] border border-[#E2E8F0] animate-pulse" />;

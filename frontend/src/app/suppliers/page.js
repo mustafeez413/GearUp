@@ -116,13 +116,13 @@ const Suppliers = () => {
                     <div className="bg-white rounded-2xl border border-slate-200 p-6 mb-8 shadow-sm">
                         <div className="flex flex-col lg:flex-row gap-4">
                             <div className="flex-1 relative">
-                                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={22} />
+                                <Search className="absolute right-4 top-1/2 transform -translate-y-1/2 text-slate-400" size={22} />
                                 <input
                                     type="text"
                                     placeholder="Search suppliers by name or specialty..."
                                     value={filters.searchQuery}
                                     onChange={(e) => setFilters({ ...filters, searchQuery: e.target.value })}
-                                    className="w-full pl-14 pr-4 py-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-transparent font-body text-lg bg-white outline-none transition-all"
+                                    className="pl-4 pr-14 w-full py-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-emerald-600 focus:border-transparent font-body text-lg bg-white outline-none transition-all"
                                 />
                             </div>
                             <div className="flex gap-4">

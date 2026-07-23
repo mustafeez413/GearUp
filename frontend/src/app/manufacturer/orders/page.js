@@ -402,7 +402,7 @@ const ManufacturerOrdersPage = () => {
                         <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                             {/* Search */}
                             <div className="relative w-full md:flex-1">
-                                <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={20} />
+                                <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={20} />
                                 <input
                                     type="text"
                                     placeholder="Search order ID, buyer, or product..."

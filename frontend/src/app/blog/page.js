@@ -86,11 +86,11 @@ const Blog = () => {
                     {/* Featured Post Placeholder / Search Bar */}
                     <div className="mb-16">
                         <div className="relative max-w-2xl mx-auto">
-                            <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
-                            <input
+                            <Search className="absolute right-5 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input
                                 type="text"
                                 placeholder="Search articles, strategies, reports..."
-                                className="w-full pl-14 pr-6 py-5 bg-white border border-slate-200 rounded-[2rem] shadow-xl shadow-slate-200/50 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none transition-all font-body text-lg"
+                                className="w-full py-5 bg-white border border-slate-200 rounded-[2rem] shadow-xl shadow-slate-200/50 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 outline-none transition-all font-body text-lg pl-6 pr-14"
                             />
                         </div>
                     </div>

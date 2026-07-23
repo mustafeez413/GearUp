@@ -70,8 +70,9 @@ const Topbar = ({
   }, []);
 
   const breadcrumbs = useMemo(() => {
+    const roleLabel = user?.role === 'wholesaler' ? 'Wholesaler' : user?.role === 'admin' ? 'Admin' : 'Manufacturer';
+
     if (pathname === '/wholesaler/marketplace' || pathname.startsWith('/wholesaler/marketplace/')) {
-      const roleLabel = user?.role === 'wholesaler' ? 'Wholesaler' : 'Manufacturer';
       if (pathname === '/wholesaler/marketplace') {
         return [roleLabel, 'Marketplace'];
       }
@@ -80,7 +81,10 @@ const Topbar = ({
 
     const parts = pathname.split('/').filter(Boolean);
     if (parts.length === 0) return ['Home'];
-    return parts.map((p) => {
+    return parts.map((p, idx) => {
+      if (idx === 0 && (p === 'wholesaler' || p === 'manufacturer' || p === 'admin')) {
+        return roleLabel;
+      }
       const name = p.replace(/-/g, ' ');
       return name.charAt(0).toUpperCase() + name.slice(1);
     });
@@ -100,6 +104,7 @@ const Topbar = ({
         : 'Manufacturer';
 
   const profileHref = user?.role === 'wholesaler' ? '/wholesaler/profile' : '/profile';
+  const settingsHref = user?.role === 'wholesaler' ? '/wholesaler/settings' : user?.role === 'manufacturer' ? '/manufacturer/settings' : '/admin/settings';
 
   const badgeClass =
     'absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] bg-[#00A878] text-white text-[9px] font-bold rounded-full flex items-center justify-center px-0.5 border-2 border-white';
@@ -187,10 +192,10 @@ const Topbar = ({
                   </div>
                 </div>
                 <div className="p-2">
-                  <Link href={profileHref} onClick={() => setDropdownOpen(false)} className="dropdown-link">
+                  <Link href={`${profileHref}?tab=account`} onClick={() => setDropdownOpen(false)} className="dropdown-link">
                     <User size={16} className="text-[#00A878]" /> My account
                   </Link>
-                  <Link href={profileHref} onClick={() => setDropdownOpen(false)} className="dropdown-link">
+                  <Link href={`${settingsHref}?tab=settings`} onClick={() => setDropdownOpen(false)} className="dropdown-link">
                     <Settings size={16} className="text-[#00A878]" /> Settings
                   </Link>
                   <Link href="/contact" onClick={() => setDropdownOpen(false)} className="dropdown-link">

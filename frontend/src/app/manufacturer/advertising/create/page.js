@@ -3,7 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { Megaphone, ChevronRight, Wallet, Sparkles, Tag } from 'lucide-react';
+import { Megaphone, ChevronRight, CreditCard, Sparkles, Tag } from 'lucide-react';
 import PageShell from '@/components/dashboard/PageShell';
 import PageHeader from '@/components/dashboard/PageHeader';
 import Card from '@/components/common/Card';
@@ -17,13 +17,12 @@ import {
   getPlanDurationDays,
   getTodayDateInput,
 } from '@/lib/adDateUtils';
-import { createCampaign, fetchAdPlans, payCampaign } from '@/lib/advertisingApi';
+import { createCampaign, fetchAdPlans, createCheckoutSession } from '@/lib/advertisingApi';
 
 export default function CreateAdvertisementPage() {
   const router = useRouter();
   const [products, setProducts] = useState([]);
   const [plans, setPlans] = useState([]);
-  const [walletBalance, setWalletBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -47,16 +46,13 @@ export default function CreateAdvertisementPage() {
       const token = localStorage.getItem('token');
       const headers = { Authorization: `Bearer ${token}` };
       const base = getApiBaseUrl();
-      const [productsRes, plansRes, walletRes] = await Promise.all([
+      const [productsRes, plansRes] = await Promise.all([
         fetch(`${base}/api/products?scope=inventory`, { headers }),
         fetchAdPlans(productCategory),
-        fetch(`${base}/api/wallet/me`, { headers }),
       ]);
       const productsData = await productsRes.json();
       if (productsData.success) setProducts(productsData.data || []);
       setPlans(plansRes.data || []);
-      const walletData = await walletRes.json();
-      if (walletData.success) setWalletBalance(walletData.data?.balance ?? 0);
     } catch (e) {
       setError(e.message);
     } finally {
@@ -119,11 +115,15 @@ export default function CreateAdvertisementPage() {
         customMedia: form.customMedia || null,
       });
       const campaignId = created.data?._id;
-      await payCampaign(campaignId, 'platform_wallet');
-      router.push('/manufacturer/advertising/campaigns?created=1');
+      
+      const checkoutRes = await createCheckoutSession(campaignId);
+      if (checkoutRes.success && checkoutRes.url) {
+        window.location.href = checkoutRes.url;
+      } else {
+        throw new Error('Failed to initialize secure payment.');
+      }
     } catch (err) {
       setError(err.message);
-    } finally {
       setSubmitting(false);
     }
   };
@@ -324,11 +324,11 @@ export default function CreateAdvertisementPage() {
                     {submitting ? (
                       <><div className="w-5 h-5 border-[2.5px] border-slate-400 border-t-white rounded-full animate-spin"></div> Processing…</>
                     ) : (
-                      <>Submit Campaign Request <ChevronRight size={18} /></>
+                      <>Continue to Secure Payment <ChevronRight size={18} /></>
                     )}
                   </button>
                   <p className="text-center text-[11px] font-medium text-slate-500 mt-4">
-                    By submitting, the total amount will be deducted from your wallet balance.
+                    You will be securely redirected to Stripe to complete your payment.
                   </p>
                 </div>
               </form>
@@ -356,27 +356,24 @@ export default function CreateAdvertisementPage() {
             </div>
           </Card>
           
-          <Card title="Wallet Balance">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-2">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-center text-slate-900 shadow-sm">
-                  <Wallet size={20} />
-                </div>
+          <Card title="Payment Method">
+            <div className="space-y-3 mt-2">
+              <div className="flex items-start gap-3 p-3 rounded-xl bg-slate-50 border border-slate-200">
+                <CreditCard size={18} className="text-slate-700 mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-[10px] text-slate-500 font-black uppercase tracking-wider mb-0.5">Available Balance</p>
-                  <p className="text-xl font-black text-slate-900 tracking-tight">{walletBalance != null ? formatPKR(walletBalance) : '—'}</p>
+                  <p className="text-sm font-bold text-slate-900 mb-0.5">Stripe Checkout</p>
+                  <p className="text-xs text-slate-500 leading-relaxed">Secure payment powered by Stripe.</p>
                 </div>
               </div>
-              <Link href="/manufacturer/transactions" className="text-xs font-bold text-emerald-600 bg-emerald-50 px-4 py-2 rounded-xl hover:bg-emerald-100 transition-colors border border-emerald-100 whitespace-nowrap text-center">
-                Top up wallet
-              </Link>
             </div>
           </Card>
           
           <div className="p-5 rounded-2xl bg-blue-50 border border-blue-100 text-sm text-blue-800 leading-relaxed font-medium flex gap-3">
             <Sparkles className="shrink-0 text-blue-500 mt-0.5" size={18} />
             <div>
-              After payment, your campaign will enter <strong className="text-blue-900">Pending Approval</strong>. Admin review typically completes within 1–2 hours.
+              Secure payments are processed using Stripe.<br/><br/>
+              After successful payment, your advertisement will be submitted for admin review.<br/><br/>
+              Once approved, your campaign will automatically become active according to the selected schedule.
             </div>
           </div>
         </div>

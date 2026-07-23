@@ -841,7 +841,7 @@ textarea:focus {
 .search-enterprise {
   width: 100%;
   height: 48px;
-  padding: 0 16px 0 44px;
+  padding: 0 44px 0 16px;
   background: #FFFFFF;
   border: 1px solid #E2E8F0;
   border-radius: 14px;
@@ -1266,4 +1266,263 @@ input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focu
   .mobile-only {
     display: none !important;
   }
+}
+
+/* ══════════════════════════════════════════
+   UNIFIED ENTERPRISE SAAS OVERRIDES
+   ══════════════════════════════════════════ */
+
+/* --- Layout width constraint & spacing --- */
+.max-width-dashboard-container {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* --- Clean, Professional Typography Override --- */
+.seller-workspace h1, 
+.seller-workspace .text-3xl,
+.seller-workspace .text-4xl {
+  font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 32px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.03em !important;
+  color: #0F172A !important;
+  line-height: 1.2 !important;
+}
+
+.seller-workspace h2,
+.seller-workspace .text-2xl,
+.seller-workspace .dashboard-section-title {
+  font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 22px !important;
+  font-weight: 750 !important;
+  letter-spacing: -0.02em !important;
+  color: #0F172A !important;
+  line-height: 1.25 !important;
+}
+
+.seller-workspace h3,
+.seller-workspace h4,
+.seller-workspace .text-lg,
+.seller-workspace .text-xl,
+.seller-workspace .card-title {
+  font-family: var(--font-heading), ui-sans-serif, system-ui, sans-serif !important;
+  font-size: 16px !important;
+  font-weight: 650 !important;
+  letter-spacing: -0.015em !important;
+  color: #0F172A !important;
+  line-height: 1.3 !important;
+}
+
+.seller-workspace p,
+.seller-workspace span,
+.seller-workspace div,
+.seller-workspace td {
+  font-size: 14px;
+}
+
+.seller-workspace .text-xs,
+.seller-workspace .text-\[10px\] {
+  font-size: 12px !important;
+}
+
+/* --- Compact Summary Cards Standard --- */
+.dashboard-card, 
+.seller-page-sheet:not(.min-h-\[calc\(100vh-10rem\)\]) {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  border-radius: 16px !important;
+  padding: 24px !important;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  margin-bottom: 16px !important;
+}
+
+.dashboard-card:hover,
+.seller-page-sheet:not(.min-h-\[calc\(100vh-10rem\)\]):hover {
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 12px 0 rgba(0, 0, 0, 0.05) !important;
+  border-color: #CBD5E1 !important;
+}
+
+/* --- Inputs and Select Box Clean Styling --- */
+.seller-workspace input[type="text"], 
+.seller-workspace input[type="email"], 
+.seller-workspace input[type="password"], 
+.seller-workspace input[type="number"], 
+.seller-workspace select, 
+.seller-workspace textarea {
+  width: 100% !important;
+  background-color: #FFFFFF !important;
+  border: 1px solid #CBD5E1 !important;
+  border-radius: 10px !important;
+  padding: 10px 14px !important;
+  font-size: 14px !important;
+  font-weight: 500 !important;
+  color: #0F172A !important;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  transition: all 0.2s !important;
+}
+
+.seller-workspace input[type="text"]:focus, 
+.seller-workspace input[type="email"]:focus, 
+.seller-workspace input[type="password"]:focus, 
+.seller-workspace input[type="number"]:focus, 
+.seller-workspace select:focus, 
+.seller-workspace textarea:focus {
+  border-color: #00A878 !important;
+  box-shadow: 0 0 0 3px rgba(0, 168, 120, 0.12) !important;
+  outline: none !important;
+}
+
+/* --- Responsive Table Redesign --- */
+.table-enterprise, 
+.orders-table-container,
+.seller-workspace table {
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  width: 100% !important;
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  border-radius: 12px !important;
+  overflow: hidden !important;
+}
+
+.seller-workspace thead {
+  background: #F8FAFC !important;
+}
+
+.seller-workspace th {
+  padding: 12px 18px !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  color: #475569 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+  border-bottom: 1px solid #E2E8F0 !important;
+}
+
+.seller-workspace tbody tr {
+  transition: background 0.15s ease !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+}
+
+.seller-workspace tbody tr:hover {
+  background: #F8FAFC !important;
+}
+
+.seller-workspace td {
+  padding: 14px 18px !important;
+  font-size: 13.5px !important;
+  color: #334155 !important;
+  border-bottom: 1px solid #F1F5F9 !important;
+}
+
+.seller-workspace tbody tr:last-child td {
+  border-bottom: none !important;
+}
+
+/* --- Clean Buttons & Indicators --- */
+.btn-primary, 
+.seller-workspace button.bg-emerald-600, 
+.seller-workspace button.bg-\[\#00A878\] {
+  background: #00A878 !important;
+  color: #FFFFFF !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-radius: 10px !important;
+  padding: 8px 16px !important;
+  transition: all 0.2s !important;
+}
+
+.btn-primary:hover, 
+.seller-workspace button.bg-emerald-600:hover, 
+.seller-workspace button.bg-\[\#00A878\]:hover {
+  background: #059669 !important;
+  transform: translateY(-1px) !important;
+}
+
+.btn-secondary,
+.seller-workspace button.bg-white.border-slate-200 {
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0 !important;
+  color: #334155 !important;
+  font-weight: 600 !important;
+  font-size: 13px !important;
+  border-radius: 10px !important;
+  padding: 8px 16px !important;
+  transition: all 0.2s !important;
+}
+
+.btn-secondary:hover,
+.seller-workspace button.bg-white.border-slate-200:hover {
+  background: #F8FAFC !important;
+  border-color: #CBD5E1 !important;
+}
+
+.badge-pending,
+.badge-processing,
+.badge-delivered,
+.badge-cancelled,
+.badge-enterprise {
+  display: inline-flex !important;
+  align-items: center !important;
+  font-weight: 700 !important;
+  font-size: 11px !important;
+  padding: 2px 8px !important;
+  border-radius: 6px !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.05em !important;
+}
+
+.badge-pending {
+  background-color: #FFFBEB !important;
+  color: #D97706 !important;
+  border: 1px solid #FDE68A !important;
+}
+
+.badge-processing {
+  background-color: #EFF6FF !important;
+  color: #2563EB !important;
+  border: 1px solid #BFDBFE !important;
+}
+
+.badge-delivered, .badge-completed {
+  background-color: #ECFDF5 !important;
+  color: #059669 !important;
+  border: 1px solid #A7F3D0 !important;
+}
+
+.badge-cancelled, .badge-rejected {
+  background-color: #FEF2F2 !important;
+  color: #DC2626 !important;
+  border: 1px solid #FECACA !important;
+}
+
+/* --- Clean scrollbars --- */
+.scrollbar-enterprise::-webkit-scrollbar,
+.seller-workspace ::-webkit-scrollbar {
+  width: 6px !important;
+  height: 6px !important;
+}
+
+.scrollbar-enterprise::-webkit-scrollbar-track,
+.seller-workspace ::-webkit-scrollbar-track {
+  background: transparent !important;
+}
+
+.scrollbar-enterprise::-webkit-scrollbar-thumb,
+.seller-workspace ::-webkit-scrollbar-thumb {
+  background: #E2E8F0 !important;
+  border-radius: 9999px !important;
+}
+
+.scrollbar-enterprise::-webkit-scrollbar-thumb:hover,
+.seller-workspace ::-webkit-scrollbar-thumb:hover {
+  background: #CBD5E1 !important;
+}
+
+.seller-workspace h1.welcome-banner-title {
+  color: #ffffff !important;
 }

@@ -3,12 +3,6 @@ const router = express.Router();
 const AdCampaign = require('../models/AdCampaign');
 const { protect } = require('../middleware/authMiddleware');
 
-// Log requests
-router.use((req, res, next) => {
-    console.log(`[ADS API] ${req.method} ${req.url}`);
-    next();
-});
-
 // GET /api/ads - Get all ads (Admin console review)
 router.get('/', protect, async (req, res) => {
   try {

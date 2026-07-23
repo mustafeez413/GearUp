@@ -6,6 +6,7 @@ const Settings = require('../models/Settings');
 const { validateCommissionInput } = require('../utils/commissionCalculator');
 const { buildVerificationOverview } = require('../utils/verificationUtils');
 const { serializeUserForClient } = require('../utils/userAvatar');
+const sendEmail = require('../utils/sendEmail');
 
 const AUDIT_ACTIONS = {
     USER_MANAGEMENT_VIEW: 'User management actions',
@@ -374,7 +375,7 @@ exports.getOperationsSummary = async (req, res, next) => {
     try {
         const Order = require('../models/Order');
         const Payout = require('../models/Payout');
-        const Escrow = require('../models/Escrow');
+        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
         const Dispute = require('../models/Dispute');
         const {
             loadOperationsContext,
@@ -444,7 +445,7 @@ exports.getPayouts = async (req, res, next) => {
     try {
         const Order = require('../models/Order');
         const Payout = require('../models/Payout');
-        const Escrow = require('../models/Escrow');
+        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
         const Dispute = require('../models/Dispute');
         const {
             loadOperationsContext,
@@ -585,9 +586,9 @@ exports.updateContactMessageStatus = async (req, res) => {
     try {
         const ContactSubmission = require('../models/ContactSubmission');
         const { status } = req.body;
-        const allowed = ['open', 'in_progress', 'replied', 'closed'];
+        const allowed = ['open', 'in_progress', 'waiting_for_user', 'replied', 'resolved', 'closed'];
         if (!allowed.includes(status)) {
-            return res.status(400).json({ success: false, error: 'Invalid support ticket status' });
+            return res.status(400).json({ success: false, error: 'Invalid support request status' });
         }
 
         const submission = await ContactSubmission.findById(req.params.id);
@@ -599,11 +600,32 @@ exports.updateContactMessageStatus = async (req, res) => {
         if (status === 'replied') {
             submission.isReplied = true;
         }
+        submission.updatedAt = new Date();
         await submission.save();
+
+        // Notify the requester when status becomes resolved or closed
+        if (submission.user && ['resolved', 'closed'].includes(status)) {
+            try {
+                const User = require('../models/User');
+                const { createNotification } = require('./notificationController');
+                const { formatTicketId } = require('./contactController');
+                const userRecord = await User.findById(submission.user).select('role');
+                const supportLink = userRecord?.role === 'wholesaler' ? '/wholesaler/support' : '/manufacturer/support';
+                const statusLabel = status === 'resolved' ? 'resolved' : 'closed';
+                await createNotification(
+                    submission.user,
+                    `Your support request ${formatTicketId(submission._id)} has been ${statusLabel}.`,
+                    'system',
+                    supportLink
+                );
+            } catch (notifyError) {
+                console.error('[Status Change] Notification failed:', notifyError.message);
+            }
+        }
 
         res.status(200).json({ success: true, data: submission });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to update support ticket status' });
+        res.status(500).json({ success: false, error: 'Failed to update support request status' });
     }
 };
 
@@ -616,11 +638,31 @@ exports.closeContactMessage = async (req, res) => {
         }
 
         submission.status = 'closed';
+        submission.updatedAt = new Date();
         await submission.save();
+
+        // Notify the requester
+        if (submission.user) {
+            try {
+                const User = require('../models/User');
+                const { createNotification } = require('./notificationController');
+                const { formatTicketId } = require('./contactController');
+                const userRecord = await User.findById(submission.user).select('role');
+                const supportLink = userRecord?.role === 'wholesaler' ? '/wholesaler/support' : '/manufacturer/support';
+                await createNotification(
+                    submission.user,
+                    `Your support request ${formatTicketId(submission._id)} has been closed.`,
+                    'system',
+                    supportLink
+                );
+            } catch (notifyError) {
+                console.error('[Close Request] Notification failed:', notifyError.message);
+            }
+        }
 
         res.status(200).json({ success: true, data: submission });
     } catch (error) {
-        res.status(500).json({ success: false, error: 'Failed to close support ticket' });
+        res.status(500).json({ success: false, error: 'Failed to close support request' });
     }
 };
 
@@ -636,16 +678,14 @@ exports.replyContactMessage = async (req, res) => {
         }
 
         const ContactSubmission = require('../models/ContactSubmission');
-        const User = require('../models/User');
-        const sendEmail = require('../utils/sendEmail');
         const { createNotification } = require('./notificationController');
 
         const submission = await ContactSubmission.findById(id);
         if (!submission) {
             return res.status(404).json({ success: false, error: 'Contact message not found' });
         }
-        if (submission.status === 'closed') {
-            return res.status(400).json({ success: false, error: 'This support ticket is closed' });
+        if (['resolved', 'closed'].includes(submission.status)) {
+            return res.status(400).json({ success: false, error: 'This support request is closed' });
         }
 
         const adminName = req.user?.name || 'GearUp Support Team';
@@ -653,10 +693,12 @@ exports.replyContactMessage = async (req, res) => {
             message: sanitizedReply,
             adminName,
             admin: req.user.id,
+            sender: 'admin',
             createdAt: new Date(),
         });
         submission.status = 'replied';
         submission.isReplied = true;
+        submission.updatedAt = new Date();
         await submission.save();
 
         const isSuspensionAppeal = submission.category === 'Suspension Appeal';
@@ -677,7 +719,7 @@ exports.replyContactMessage = async (req, res) => {
                 <p>If further action is required, you may reply to this email or submit another support request.</p>
                 <p style="margin-top: 24px;">Regards,<br/>GearUp Support Team</p>
                 <hr style="border: 0; border-top: 1px solid #E5E7EB; margin: 24px 0;" />
-                <p style="font-size: 12px; color: #94A3B8;">Ticket ${formatTicketId(submission._id)} &copy; ${new Date().getFullYear()}</p>
+                <p style="font-size: 12px; color: #94A3B8;">Request ${formatTicketId(submission._id)} &copy; ${new Date().getFullYear()}</p>
             </div>
         `;
 

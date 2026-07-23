@@ -6,7 +6,7 @@ import { getApiBaseUrl } from '@/lib/api';
 import { isAwaitingAdminReview } from '@/lib/verificationStats';
 import { resolvePaymentStatus, PAYMENT_STATUS } from '@/lib/adminOperationsUtils';
 import {
-  Banknote, Megaphone, Package, ShieldCheck, ShoppingCart, Users, Wallet,
+  Banknote, Megaphone, Package, ShieldCheck, ShoppingCart, Users,
 } from 'lucide-react';
 
 function isToday(value) {
@@ -123,7 +123,6 @@ export default function useAdminDashboardData() {
   const [settings, setSettings] = useState(null);
   const [adOverview, setAdOverview] = useState(null);
   const [productsList, setProductsList] = useState([]);
-  const [walletStats, setWalletStats] = useState(null);
   const [paymentStats, setPaymentStats] = useState(null);
   const [operationsSummary, setOperationsSummary] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -135,7 +134,7 @@ export default function useAdminDashboardData() {
       setLoading(true);
       const [
         resOrders, resTxns, resUsers, resDisputes, resVerification,
-        resSettings, resAds, resProducts, resWallet,
+        resSettings, resAds, resProducts,
       ] = await Promise.all([
         fetch(`${getApiBaseUrl()}/api/orders`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${getApiBaseUrl()}/api/transactions/admin`, { headers: { Authorization: `Bearer ${token}` } }),
@@ -145,7 +144,6 @@ export default function useAdminDashboardData() {
         fetch(`${getApiBaseUrl()}/api/admin/settings`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${getApiBaseUrl()}/api/advertisements/admin/overview`, { headers: { Authorization: `Bearer ${token}` } }),
         fetch(`${getApiBaseUrl()}/api/products`, { headers: { Authorization: `Bearer ${token}` } }),
-        fetch(`${getApiBaseUrl()}/api/wallet/admin/stats`, { headers: { Authorization: `Bearer ${token}` } }),
       ]);
 
       const jsonOrders = await resOrders.json();
@@ -156,7 +154,6 @@ export default function useAdminDashboardData() {
       const jsonSettings = await resSettings.json();
       const jsonAds = await resAds.json();
       const jsonProducts = await resProducts.json();
-      const jsonWallet = await resWallet.json();
 
       if (jsonOrders.success) {
         setOrders(jsonOrders.data || []);
@@ -169,7 +166,6 @@ export default function useAdminDashboardData() {
       if (jsonSettings.success) setSettings(jsonSettings.data || null);
       if (jsonAds.success) setAdOverview(jsonAds.data || null);
       if (jsonProducts.success) setProductsList(Array.isArray(jsonProducts.data) ? jsonProducts.data : []);
-      if (jsonWallet.success) setWalletStats(jsonWallet.data?.stats || jsonWallet.data || null);
       if (jsonDisputes.success) {
         setDisputes(jsonDisputes.data || []);
       } else if (!jsonDisputes.success) {
@@ -409,14 +405,15 @@ export default function useAdminDashboardData() {
 
     const activeOrderStatuses = ['pending', 'pending_approval', 'processing', 'shipped', 'verified'];
     const activeOrders = orders.filter((o) => activeOrderStatuses.includes(o.status)).length;
-    const escrowOrderCount =
-      walletStats?.escrowByStatus?.find((e) => e._id === 'IN_ESCROW')?.count
-      ?? orders.filter(
-        (o) =>
-          o.paymentStatus === 'pending_approval'
-          || o.paymentStatus === 'verified'
-          || o.paymentStatus === 'Pending Approval'
-      ).length;
+    // Count orders with payment held in escrow (Stripe lifecycle)
+    const escrowOrderCount = orders.filter(
+      (o) =>
+        o.paymentStatus === 'Held'
+        || o.paymentStatus === 'Holding'
+        || o.paymentStatus === 'pending_approval'
+        || o.paymentStatus === 'verified'
+        || o.paymentStatus === 'Pending Approval'
+    ).length;
 
     const pendingIssues =
       pendingBusinessVerifications
@@ -449,8 +446,8 @@ export default function useAdminDashboardData() {
       monthlyRevenue: percentChange(monthlyRevenue, lastMonthRevenue),
       commissionEarned: percentChange(thisMonthCommission, lastMonthRevenue),
       escrowBalance: percentChange(
-        walletStats?.totalEscrowFunds || 0,
-        walletStats?.totalReleasedFunds || 0
+        orders.filter(o => o.paymentStatus === 'Held' || o.paymentStatus === 'Holding').length,
+        orders.filter(o => o.paymentStatus === 'Released').length
       ),
       pendingPayoutAmount: percentChange(thisMonthPayoutVolume, lastMonthPayoutVolume),
     };
@@ -500,9 +497,9 @@ export default function useAdminDashboardData() {
       activityItems.push({
         id: `payout-${tx._id}`,
         at: tx.createdAt || tx.timestamp,
-        icon: Wallet,
+        icon: Banknote,
         tone: 'bg-orange-100 text-orange-700',
-        title: `Payout requested for ${tx.seller?.name || 'seller'}`,
+        title: `Seller earnings pending release for ${tx.seller?.name || 'seller'}`,
       });
     });
 
@@ -561,7 +558,7 @@ export default function useAdminDashboardData() {
       monthlyRevenue,
       commissionEarned,
       advertisementRevenue,
-      escrowBalance: walletStats?.totalEscrowFunds || 0,
+      escrowBalance: orders.filter(o => o.paymentStatus === 'Held' || o.paymentStatus === 'Holding').reduce((sum, o) => sum + (o.totalAmount || 0), 0),
       manufacturers: activeManufacturers,
       wholesalers: activeWholesalers,
       products: productsList.length,
@@ -628,7 +625,6 @@ export default function useAdminDashboardData() {
     monthlyRevenue,
     commissionEarned,
     pendingPayoutAmount,
-    walletStats,
     productsList,
     pendingBusinessVerifications,
     settings,
@@ -646,9 +642,9 @@ export default function useAdminDashboardData() {
       pendingRevenue,
       todayRevenue,
       monthlyRevenue,
-      escrowBalance: walletStats?.totalEscrowFunds || 0,
+      escrowBalance: orders.filter(o => o.paymentStatus === 'Held' || o.paymentStatus === 'Holding').reduce((sum, o) => sum + (o.totalAmount || 0), 0),
     };
-  }, [commissionEarned, adOverview, pendingPayoutAmount, todayRevenue, monthlyRevenue, walletStats]);
+  }, [commissionEarned, adOverview, pendingPayoutAmount, todayRevenue, monthlyRevenue, orders]);
 
   return {
     loading,
@@ -660,7 +656,6 @@ export default function useAdminDashboardData() {
     productsList,
     settings,
     adOverview,
-    walletStats,
     paymentStats,
     operationsSummary,
     pendingPaymentReviews,

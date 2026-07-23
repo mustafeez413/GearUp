@@ -33,15 +33,34 @@ const AdvertisementSchema = new mongoose.Schema({
       'draft',
       'pending_payment',
       'pending_approval',
+      'scheduled',
       'active',
       'paused',
       'rejected',
       'expired',
-      'completed'
+      'completed',
+      'cancelled'
     ],
     default: 'draft',
     index: true
   },
+  paymentStatus: {
+    type: String,
+    enum: ['pending', 'paid', 'failed', 'cancelled', 'refunded'],
+    default: 'pending'
+  },
+  approvalStatus: {
+    type: String,
+    enum: ['pending_review', 'approved', 'rejected'],
+    default: 'pending_review'
+  },
+  approvedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  approvedAt: { type: Date },
+  rejectedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  rejectedAt: { type: Date },
+  stripeCheckoutSessionId: { type: String },
+  stripePaymentIntentId: { type: String },
+  paidAt: { type: Date },
   impressions: { type: Number, default: 0 },
   views: { type: Number, default: 0 },
   clicks: { type: Number, default: 0 },

@@ -219,7 +219,7 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
                         <div>
                             <span className="font-heading text-[8px] font-black text-slate-400 uppercase tracking-widest block">Payment Method</span>
                             <span className="font-body text-xs font-black text-slate-800 uppercase tracking-widest">
-                                {order.paymentMethod === 'platform_wallet' ? 'Wallet Payment' : 'Bank Transfer'}
+                                Card Payment (Stripe)
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5">

@@ -6,13 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "next lint"
   },
   "dependencies": {
     "@react-oauth/google": "^0.13.5",
     "@stripe/react-stripe-js": "^6.7.0",
     "@stripe/stripe-js": "^9.9.0",
-    "grab": "^0.1.19",
     "lucide-react": "^0.575.0",
     "next": "16.1.6",
     "react": "19.1.0",

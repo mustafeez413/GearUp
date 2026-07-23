@@ -161,9 +161,22 @@ export default function DisputeResolutionCard({ dispute, role, onRefresh }) {
         {dispute.sellerResponse?.message && (
           <div className="rounded-[14px] border border-blue-100 bg-blue-50/50 p-4 sm:p-5">
             <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-700 mb-2 flex items-center gap-1.5">
-              <Store size={12} /> Seller Response
+              <Store size={12} /> Manufacturer Response
             </p>
             <p className="text-sm font-medium text-[#0F172A] leading-relaxed">{dispute.sellerResponse.message}</p>
+            {dispute.sellerResponse.evidenceImages?.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-blue-100">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-blue-600 mb-2">Manufacturer Evidence</p>
+                <div className="flex flex-wrap gap-2">
+                  {dispute.sellerResponse.evidenceImages.filter(Boolean).map((src, i) => (
+                    <a key={i} href={`${getApiBaseUrl()}${src}`} target="_blank" rel="noopener noreferrer"
+                      className="block relative group rounded-xl overflow-hidden border border-blue-200 shadow-sm hover:shadow-md transition-shadow">
+                      <img src={`${getApiBaseUrl()}${src}`} alt={`Manufacturer evidence ${i + 1}`} className="w-20 h-20 object-cover" />
+                    </a>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 
@@ -258,21 +271,21 @@ export default function DisputeResolutionCard({ dispute, role, onRefresh }) {
           <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-xl text-sm font-semibold">{error}</div>
         )}
 
-        {/* Actions: Seller */}
+        {/* Actions: Seller — evidence submission only, no financial authority */}
         {role === 'seller' && !closed && (
           <div className="flex flex-col gap-3 pt-4 border-t border-[#E2E8F0]">
-            <p className="text-sm text-[#64748B] font-medium">Respond to the buyer or approve a refund if the claim is valid.</p>
+            <p className="text-sm text-[#64748B] font-medium">Provide your explanation and supporting evidence. The GearUp admin team will review all submissions and decide the outcome.</p>
             <textarea
               value={sellerMessage}
               onChange={(e) => setSellerMessage(e.target.value)}
-              rows={2}
-              placeholder="Your explanation or offer to the buyer…"
+              rows={3}
+              placeholder="Your explanation or response to the buyer's complaint…"
               className="w-full text-sm rounded-xl border border-[#E2E8F0] px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-[#10B981]/15 focus:border-[#10B981]"
             />
             <div className="flex flex-wrap gap-3">
               <button
                 type="button"
-                disabled={!!loading}
+                disabled={!!loading || !sellerMessage.trim()}
                 onClick={async () => {
                   try {
                     await api(`/api/disputes/${dispute._id}/seller/respond`, 'PUT', { message: sellerMessage });
@@ -285,27 +298,10 @@ export default function DisputeResolutionCard({ dispute, role, onRefresh }) {
                 }}
                 className="btn-secondary"
               >
-                <MessageSquare size={16} className="inline mr-1" /> Respond only
-              </button>
-              <button
-                type="button"
-                disabled={!!loading}
-                onClick={async () => {
-                  if (!confirm('Refund buyer from your wallet for this order portion?')) return;
-                  try {
-                    await api(`/api/disputes/${dispute._id}/seller/refund`, 'PUT', { message: sellerMessage });
-                    setSellerMessage('');
-                  } catch (e) {
-                    setError(e.message);
-                  } finally {
-                    setLoading('');
-                  }
-                }}
-                className="btn-primary"
-              >
-                <RotateCcw size={16} className="inline mr-1" /> Approve refund
+                <MessageSquare size={16} className="inline mr-1" /> Submit Response & Evidence
               </button>
             </div>
+            <p className="text-[11px] text-[#94A3B8] mt-1">Only the GearUp Admin can approve refunds or release payments. Your role is to provide evidence and context.</p>
           </div>
         )}
 
@@ -380,10 +376,10 @@ export default function DisputeResolutionCard({ dispute, role, onRefresh }) {
                 type="button"
                 disabled={!!loading}
                 onClick={async () => {
-                  if (!confirm('Deduct from seller wallet and refund buyer for this seller portion only?')) return;
+                  if (!confirm('Approve Stripe Refund to buyer? This will trigger the Stripe Refund API and cannot be undone.')) return;
                   try {
                     await api(`/api/disputes/${dispute._id}/refund`, 'PUT', {
-                      resolution: 'Admin approved refund after review.',
+                      resolution: 'Admin approved refund after reviewing evidence.',
                     });
                   } catch (e) {
                     setError(e.message);
@@ -393,7 +389,7 @@ export default function DisputeResolutionCard({ dispute, role, onRefresh }) {
                 }}
                 className="btn-primary"
               >
-                Refund buyer (from seller wallet)
+                <RotateCcw size={16} className="inline mr-1" /> Approve Stripe Refund
               </button>
               <button
                 type="button"

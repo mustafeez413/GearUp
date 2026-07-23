@@ -3,7 +3,7 @@ const Order = require('../models/Order');
 const Transaction = require('../models/Transaction');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
-const { refundEscrowForSeller } = require('../services/walletService');
+
 
 const OPEN_STATUSES = ['open', 'under_review', 'investigating', 'awaiting_seller', 'seller_responded'];
 
@@ -84,16 +84,7 @@ async function syncOrderItemDisputeStatus(orderOrId, productId, disputeStatus) {
     await order.save();
 }
 
-async function processDisputeRefundWallets(order, dispute) {
-    const amount = Number(dispute.refundAmount) || 0;
-    if (amount <= 0) {
-        return { amount: 0 };
-    }
-    if (order?.paymentMethod !== 'platform_wallet') {
-        return { amount, walletSkipped: true };
-    }
-    return refundEscrowForSeller(order._id, dispute.seller, amount);
-}
+
 
 function buyerOrderLink(orderId) {
     return `/wholesaler/orders/${orderId}`;
@@ -119,6 +110,36 @@ exports.createDispute = async (req, res) => {
 
         if (userId(order.buyer) !== buyerId) {
             return res.status(403).json({ success: false, error: 'Not authorized' });
+        }
+
+        // Verify order has been delivered/completed
+        if (order.status !== 'delivered' && order.status !== 'completed') {
+            return res.status(400).json({ success: false, error: 'Disputes can only be opened after the order has been delivered.' });
+        }
+
+        // Verify dispute window has not expired
+        const Settings = require('../models/Settings');
+        const settings = await Settings.findOne() || { disputeWindowDays: 3 };
+        const windowDays = settings.disputeWindowDays || 3;
+        
+        if (order.deliveredAt) {
+            const timeElapsedMs = Date.now() - new Date(order.deliveredAt).getTime();
+            const windowMs = windowDays * 24 * 60 * 60 * 1000;
+            if (timeElapsedMs > windowMs) {
+                return res.status(400).json({
+                    success: false,
+                    error: `The dispute window of ${windowDays} days for this order has expired. You can no longer open a dispute.`
+                });
+            }
+        }
+
+        // Restrict to only one dispute per order
+        const existingOrderDispute = await Dispute.findOne({ order: orderId });
+        if (existingOrderDispute) {
+            return res.status(400).json({
+                success: false,
+                error: 'You have already opened a dispute for this order. Only one dispute is allowed per order.'
+            });
         }
 
         if (!productId) {
@@ -337,7 +358,7 @@ exports.buyerRespond = async (req, res) => {
 // @route   PUT /api/disputes/:id/seller/respond
 exports.sellerRespond = async (req, res) => {
     try {
-        const { message } = req.body;
+        const { message, evidence, evidenceImages } = req.body;
         if (!message?.trim()) {
             return res.status(400).json({ success: false, error: 'Please provide a response message.' });
         }
@@ -356,11 +377,24 @@ exports.sellerRespond = async (req, res) => {
             return res.status(400).json({ success: false, error: 'You cannot respond in the current dispute state.' });
         }
 
-        dispute.sellerResponse = { message: message.trim(), respondedAt: new Date() };
+        const images = [];
+        if (evidence) images.push(evidence);
+        if (Array.isArray(evidenceImages)) {
+            evidenceImages.forEach((img) => {
+                if (img && !images.includes(img)) images.push(img);
+            });
+        }
+
+        dispute.sellerResponse = {
+            message: message.trim(),
+            evidence: images[0] || '',
+            evidenceImages: images,
+            respondedAt: new Date()
+        };
         dispute.status = 'seller_responded';
         appendTimeline(dispute, {
             action: 'seller_response',
-            message: message.trim(),
+            message: `Seller responded with evidence: ${message.trim()}`,
             userId: userId(req.user),
             role: 'manufacturer'
         });
@@ -394,9 +428,21 @@ exports.sellerRefund = async (req, res) => {
         }
 
         const order = dispute.order;
-        let refundResult = { amount: dispute.refundAmount };
-        if (order?.paymentMethod === 'platform_wallet') {
-            refundResult = await processDisputeRefundWallets(order, dispute);
+
+        if (order?.stripePaymentIntentId) {
+            try {
+                const stripe = require('../services/stripeService');
+                await stripe.refunds.create({
+                    payment_intent: order.stripePaymentIntentId,
+                    reason: 'requested_by_customer'
+                });
+            } catch (stripeErr) {
+                console.error('[stripe-refund] Stripe Refund API call failed:', stripeErr.message);
+                return res.status(400).json({ success: false, error: `Stripe Refund failed: ${stripeErr.message}` });
+            }
+
+            const { refundOrderTransactionally } = require('../utils/payoutSync');
+            await refundOrderTransactionally(order._id, message?.trim() || 'Seller approved refund to buyer.');
         }
 
         if (message?.trim()) {
@@ -404,7 +450,6 @@ exports.sellerRefund = async (req, res) => {
         }
         dispute.status = 'refunded';
         dispute.resolution = message?.trim() || 'Seller approved refund to buyer.';
-        dispute.refundAmount = refundResult.amount ?? dispute.refundAmount;
         appendTimeline(dispute, {
             action: 'seller_refund',
             message: dispute.resolution,
@@ -413,15 +458,7 @@ exports.sellerRefund = async (req, res) => {
         });
         await dispute.save();
 
-        await applyDisputeRefundOrderState(order, dispute);
         await syncOrderItemDisputeStatus(order, dispute.product, 'refunded');
-
-        try {
-            const { markPayoutsRefundedForOrder } = require('../utils/payoutSync');
-            await markPayoutsRefundedForOrder(order._id, dispute.seller);
-        } catch (payoutErr) {
-            console.error('[payout] dispute refund sync:', payoutErr.message);
-        }
 
         const shortId = orderShortId(order);
         await notifyUser(
@@ -454,7 +491,7 @@ exports.adminRequestSellerResponse = async (req, res) => {
         const deadline = new Date(Date.now() + Number(hours) * 60 * 60 * 1000);
         dispute.status = 'awaiting_seller';
         dispute.sellerRespondDeadline = deadline;
-        const adminMsg = message?.trim() || 'Please respond to the buyer’s claim with your side and any proof. If no response, admin may refund the buyer from your wallet.';
+        const adminMsg = message?.trim() || 'Please respond to the buyer’s claim with your side and any proof. If no response, admin may refund the buyer.';
         appendTimeline(dispute, {
             action: 'admin_request_seller',
             message: adminMsg,
@@ -550,10 +587,14 @@ exports.adminRejectDispute = async (req, res) => {
 
         await syncOrderItemDisputeStatus(dispute.order, dispute.product, 'rejected');
 
-        const transactions = await Transaction.find({ order: dispute.order._id, status: 'Hold' });
-        for (const tx of transactions) {
-            tx.status = 'Pending';
-            await tx.save();
+        // Manufacturer wins -> release payment internally
+        const order = dispute.order;
+        if (order) {
+            const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
+            await releaseOrderPaymentTransactionally(order._id);
+            order.status = 'completed';
+            order.paymentStatus = 'Released';
+            await order.save();
         }
 
         const shortId = orderShortId(dispute.order);
@@ -590,14 +631,25 @@ exports.adminRefundDispute = async (req, res) => {
         }
 
         const order = dispute.order;
-        let refundResult = { amount: dispute.refundAmount };
-        if (order?.paymentMethod === 'platform_wallet') {
-            refundResult = await processDisputeRefundWallets(order, dispute);
+
+        if (order?.stripePaymentIntentId) {
+            try {
+                const stripe = require('../services/stripeService');
+                await stripe.refunds.create({
+                    payment_intent: order.stripePaymentIntentId,
+                    reason: 'requested_by_customer'
+                });
+            } catch (stripeErr) {
+                console.error('[stripe-refund] Stripe Refund API call failed:', stripeErr.message);
+                return res.status(400).json({ success: false, error: `Stripe Refund failed: ${stripeErr.message}` });
+            }
+
+            const { refundOrderTransactionally } = require('../utils/payoutSync');
+            await refundOrderTransactionally(order._id, resolution || 'Admin approved refund.');
         }
 
         dispute.status = 'refunded';
-        dispute.resolution = resolution || 'Admin approved refund — amount returned to buyer wallet.';
-        dispute.refundAmount = refundResult.amount ?? dispute.refundAmount;
+        dispute.resolution = resolution || 'Admin approved refund.';
         appendTimeline(dispute, {
             action: 'admin_refund',
             message: dispute.resolution,
@@ -606,15 +658,7 @@ exports.adminRefundDispute = async (req, res) => {
         });
         await dispute.save();
 
-        await applyDisputeRefundOrderState(order, dispute);
         await syncOrderItemDisputeStatus(order, dispute.product, 'refunded');
-
-        try {
-            const { markPayoutsRefundedForOrder } = require('../utils/payoutSync');
-            await markPayoutsRefundedForOrder(order._id, dispute.seller);
-        } catch (payoutErr) {
-            console.error('[payout] admin dispute refund sync:', payoutErr.message);
-        }
 
         const shortId = orderShortId(order);
         await notifyUser(
@@ -624,12 +668,12 @@ exports.adminRefundDispute = async (req, res) => {
         );
         await notifyUser(
             dispute.seller,
-            `Admin processed refund PKR ${(dispute.refundAmount || 0).toLocaleString()} for order #${shortId} from your wallet.`,
+            `Admin processed refund PKR ${(dispute.refundAmount || 0).toLocaleString()} for order #${shortId}.`,
             '/manufacturer/disputes'
         );
 
         const populated = await populateDispute(Dispute.findById(dispute._id));
-        res.status(200).json({ success: true, data: populated, refund: refundResult });
+        res.status(200).json({ success: true, data: populated, refund: { amount: dispute.refundAmount } });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }

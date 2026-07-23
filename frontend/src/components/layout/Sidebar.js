@@ -39,8 +39,8 @@ const Sidebar = ({
   isOpen = true,
   onClose,
   isMobile = false,
-  widthFull = 280,
-  widthCollapsed = 72,
+  widthFull = 240,
+  widthCollapsed = 64,
 }) => {
   const pathname = usePathname();
   const { logout, user } = useAuth();
@@ -52,37 +52,70 @@ const Sidebar = ({
   };
 
   const [unreadCount, setUnreadCount] = useState(0);
-  const [unreadOrders, setUnreadOrders] = useState(0);
+  const [pendingSalesOrders, setPendingSalesOrders] = useState(0);
+  const [pendingPurchaseOrders, setPendingPurchaseOrders] = useState(0);
   const [unreadChats, setUnreadChats] = useState(0);
 
   useEffect(() => {
-    const fetchUnread = async () => {
+    const fetchBadges = async () => {
       const token = localStorage.getItem('token');
       if (!token) return;
       try {
-        const res = await fetch(`${getApiBaseUrl()}/api/notifications`, {
+        // 1. Fetch unread notifications for chats
+        const resNotif = await fetch(`${getApiBaseUrl()}/api/notifications`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        const json = await res.json();
-        if (json.success && json.data) {
-          const unread = json.data.filter(n => !n.isRead);
+        const jsonNotif = await resNotif.json();
+        if (jsonNotif.success && jsonNotif.data) {
+          const unread = jsonNotif.data.filter(n => !n.isRead);
           setUnreadCount(unread.length);
-          setUnreadOrders(unread.filter(n => n.type === 'order' || (n.message || '').toLowerCase().includes('order')).length);
           setUnreadChats(unread.filter(n => n.type === 'message' || (n.message || '').toLowerCase().includes('chat') || (n.message || '').toLowerCase().includes('message')).length);
         }
+
+        // 2. Fetch orders to calculate real pending order counts
+        const resOrders = await fetch(`${getApiBaseUrl()}/api/orders`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        const jsonOrders = await resOrders.json();
+        if (jsonOrders.success && jsonOrders.data) {
+          const orders = Array.isArray(jsonOrders.data) ? jsonOrders.data : [];
+          let salesPending = 0;
+          let purchasePending = 0;
+
+          orders.forEach(o => {
+            // Determine if user is a seller for this order
+            const isManufacturer = (o.manufacturer?._id || o.manufacturer)?.toString() === (user?.id || user?._id)?.toString();
+            const sellerStat = (o.sellerStats || []).find(stat => (stat.seller?._id || stat.seller)?.toString() === (user?.id || user?._id)?.toString());
+            const isSellerInItems = (o.items || []).some(i => (i.seller?._id || i.seller)?.toString() === (user?.id || user?._id)?.toString());
+            
+            if (isManufacturer || sellerStat || isSellerInItems) {
+                const status = sellerStat ? (sellerStat.status || o.status) : o.status;
+                if ((status || '').toLowerCase().startsWith('pending')) salesPending++;
+            }
+
+            // Determine if user is a buyer for this order
+            const isBuyer = (o.buyer?._id || o.buyer)?.toString() === (user?.id || user?._id)?.toString();
+            if (isBuyer) {
+                if ((o.status || '').toLowerCase().startsWith('pending')) purchasePending++;
+            }
+          });
+
+          setPendingSalesOrders(salesPending);
+          setPendingPurchaseOrders(purchasePending);
+        }
       } catch (err) {
-        console.error('Failed to load notifications', err);
+        console.error('Failed to load sidebar badges', err);
       }
     };
     if (user) {
-      fetchUnread();
+      fetchBadges();
     }
     
     // Listen for custom event to update badge immediately
-    const handleRead = () => fetchUnread();
+    const handleRead = () => fetchBadges();
     window.addEventListener('notifications-read', handleRead);
     return () => window.removeEventListener('notifications-read', handleRead);
-  }, [user]);
+  }, [user, pathname]);
 
   const getMenuItems = () => {
     if (user?.role === 'admin') {
@@ -93,11 +126,12 @@ const Sidebar = ({
       return [
         { label: 'Overview', path: '/wholesaler/dashboard', icon: LayoutDashboard },
         { label: 'Inventory', path: '/manufacturer/products', icon: Package },
-        { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: unreadOrders },
-        { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: unreadOrders },
+        { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: pendingSalesOrders },
+        { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: pendingPurchaseOrders },
         { label: 'Marketplace', path: '/wholesaler/marketplace', icon: Search },
         { label: 'Seller Chats', path: '/wholesaler/chats', icon: MessageSquare, hasNotification: unreadChats },
         { label: 'Payments', path: '/manufacturer/transactions', icon: Banknote },
+        { label: 'Payout Settings', path: '/wholesaler/payout-settings', icon: Settings },
         { label: 'Order Issues', path: '/manufacturer/disputes', icon: AlertTriangle },
         { label: 'Support Requests', path: '/wholesaler/support', icon: LifeBuoy },
         { label: 'Analytics', path: '/manufacturer/analytics', icon: BarChart3 },
@@ -107,11 +141,12 @@ const Sidebar = ({
     const manufacturerItems = [
       { label: 'Overview', path: '/manufacturer/dashboard', icon: LayoutDashboard },
       { label: 'Inventory', path: '/manufacturer/products', icon: Package },
-      { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: unreadOrders },
-      { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: unreadOrders },
+      { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: pendingSalesOrders },
+      { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: pendingPurchaseOrders },
       { label: 'Marketplace', path: '/wholesaler/marketplace', icon: Search },
       { label: 'Seller Chats', path: '/manufacturer/chats', icon: MessageSquare, hasNotification: unreadChats },
       { label: 'Payments', path: '/manufacturer/transactions', icon: Banknote },
+      { label: 'Payout Settings', path: '/manufacturer/payout-settings', icon: Settings },
       { label: 'Order Issues', path: '/manufacturer/disputes', icon: AlertTriangle },
       { label: 'Support Requests', path: '/manufacturer/support', icon: LifeBuoy },
       { label: 'Analytics', path: '/manufacturer/analytics', icon: BarChart3 },
@@ -168,15 +203,18 @@ const Sidebar = ({
                   ? '/wholesaler/dashboard'
                   : '/admin/dashboard'
             }
-            className="flex items-center gap-2.5 min-w-0"
+            className="flex items-center gap-3 min-w-0"
           >
-            <div className="w-9 h-9 rounded-lg bg-[#00A878] flex items-center justify-center shrink-0">
-              <span className="font-black text-white text-sm">G</span>
+            <div className="bg-white px-2 py-1.5 rounded-lg flex items-center justify-center shrink-0">
+              <img 
+                src="/assets/images/gearup-logo-cropped.png" 
+                className="h-6 w-auto object-contain" 
+                alt="GearUp Logo" 
+              />
             </div>
             {showLabels && (
-              <div className="min-w-0">
-                <div className="font-bold text-white text-[15px] leading-none tracking-tight">GEARUP</div>
-                <div className="text-[9px] text-[#00A878] font-bold uppercase tracking-[0.2em] mt-1">
+              <div className="min-w-0 flex flex-col justify-center">
+                <div className="text-[10px] text-[#00A878] font-black uppercase tracking-[0.2em] leading-tight">
                   {user?.role === 'admin' ? 'Admin Center' : user?.role === 'wholesaler' ? 'Wholesaler Center' : 'Manufacturer Center'}
                 </div>
               </div>
@@ -257,70 +295,6 @@ const Sidebar = ({
           })
           )}
         </nav>
-
-        <div className="p-2.5 border-t border-white/[0.06] space-y-1 shrink-0">
-          {showLabels && user && (
-            <div
-              className="px-3.5 py-3 mb-1 rounded-[16px] border border-white/[0.08] backdrop-blur-sm"
-              style={{
-                background: 'linear-gradient(135deg, rgba(8,25,20,0.95), rgba(12,45,35,0.95))',
-                boxShadow: '0 10px 30px rgba(0,0,0,0.25)',
-              }}
-            >
-              <div className="text-[8px] font-bold uppercase tracking-[0.2em] text-white/35 mb-3">Account</div>
-              <div className="flex items-center gap-3">
-                <div className="shrink-0" style={{ filter: 'drop-shadow(0 0 15px rgba(16,185,129,0.25))' }}>
-                  <UserAvatar
-                    user={user}
-                    size="sm"
-                    variant="dark"
-                    className="border-2"
-                    style={{ borderColor: 'rgba(16,185,129,0.4)' }}
-                  />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="text-[13px] font-semibold text-white/95 truncate leading-tight">{user.name || 'User'}</div>
-                  <div className="text-[10px] text-[#10B981] font-semibold mt-0.5">{roleDisplay}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          <Link
-            href={
-              user?.role === 'wholesaler'
-                ? '/wholesaler/profile'
-                : user?.role === 'manufacturer'
-                  ? '/profile'
-                  : '/admin/settings/platform'
-            }
-            className={`flex items-center gap-3 py-2.5 rounded-lg text-[13px] font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/80 transition-all duration-200 ${
-              !showLabels ? 'justify-center px-0' : 'px-3'
-            }`}
-          >
-            <Settings size={17} className="shrink-0" />
-            {showLabels && <span>Settings</span>}
-          </Link>
-          <Link
-            href={user?.role === 'admin' ? '/admin/support' : '/contact'}
-            className={`flex items-center gap-3 py-2.5 rounded-lg text-[13px] font-medium text-white/50 hover:bg-white/[0.05] hover:text-white/80 transition-all duration-200 ${
-              !showLabels ? 'justify-center px-0' : 'px-3'
-            }`}
-          >
-            <HelpCircle size={17} className="shrink-0" />
-            {showLabels && <span>Support</span>}
-          </Link>
-          <button
-            type="button"
-            onClick={handleLogout}
-            className={`flex items-center gap-3 py-2.5 rounded-lg text-[13px] font-medium text-red-400/70 hover:text-red-300 hover:bg-red-500/[0.08] transition-all duration-200 w-full ${
-              !showLabels ? 'justify-center px-0' : 'px-3'
-            }`}
-          >
-            <LogOut size={17} className="shrink-0" />
-            {showLabels && <span>Sign out</span>}
-          </button>
-        </div>
       </aside>
     </>
   );

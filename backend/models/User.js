@@ -112,6 +112,37 @@ const UserSchema = new mongoose.Schema({
         otherWalletNumber: String,
         paymentNotes: String
     },
+    payoutDetails: {
+        isConfigured: {
+            type: Boolean,
+            default: false
+        },
+        method: {
+            type: String,
+            enum: ['Bank Transfer', 'JazzCash', 'EasyPaisa', ''],
+            default: ''
+        },
+        bankName: {
+            type: String,
+            default: ''
+        },
+        accountTitle: {
+            type: String,
+            default: ''
+        },
+        iban: {
+            type: String,
+            default: ''
+        },
+        accountNumber: {
+            type: String,
+            default: ''
+        },
+        walletNumber: {
+            type: String,
+            default: ''
+        }
+    },
     verificationStatus: {
         type: String,
         enum: ['pending', 'approved', 'rejected', 'business_required'],

@@ -81,7 +81,7 @@ export default function DashboardMetricsGrid({
             color: 'text-amber-600 bg-amber-50 border-amber-100/60',
             href: isManufacturer ? '/manufacturer/orders' : '/wholesaler/orders'
         },
-        // Card 5: WALLET BALANCE
+        /* Card 5: WALLET BALANCE (Disconnected)
         {
             label: 'Wallet Balance',
             value: data.walletBalance != null ? formatPKR(data.walletBalance) : '…',
@@ -91,6 +91,7 @@ export default function DashboardMetricsGrid({
             color: 'text-teal-600 bg-teal-50 border-teal-100/60',
             href: isManufacturer ? '/manufacturer/transactions' : '/wholesaler/transactions'
         },
+        */
         // Card 6: DELIVERED
         {
             label: 'Delivered',

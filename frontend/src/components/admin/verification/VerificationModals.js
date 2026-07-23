@@ -254,6 +254,26 @@ export function BusinessProfileModal({ open, user, onClose }) {
             <p className="mt-3 text-sm font-medium text-[#EF4444]">Last rejection: {user.verificationRejectionReason}</p>
           )}
         </Section>
+        {user.role === 'manufacturer' && (
+          <Section title="Payout Information" className="md:col-span-2">
+            <Row label="Configuration Status" value={user.payoutDetails?.isConfigured ? 'Configured' : 'Not Configured'} />
+            {user.payoutDetails?.isConfigured && (
+              <>
+                <Row label="Preferred Method" value={user.payoutDetails.method || '—'} />
+                <Row label="Account Title" value={user.payoutDetails.accountTitle || '—'} />
+                {user.payoutDetails.method === 'Bank Transfer' ? (
+                  <>
+                    <Row label="Bank Name" value={user.payoutDetails.bankName || '—'} />
+                    <Row label="IBAN / Account Number" value={user.payoutDetails.iban || '—'} />
+                    <Row label="Account Number" value={user.payoutDetails.accountNumber || '—'} />
+                  </>
+                ) : (
+                  <Row label="Wallet Number" value={user.payoutDetails.walletNumber || '—'} />
+                )}
+              </>
+            )}
+          </Section>
+        )}
         {user.verificationAdminNotes && (
           <Section title="Admin notes" className="md:col-span-2">
             <p className="text-sm font-medium text-[#64748B] whitespace-pre-wrap">{user.verificationAdminNotes}</p>

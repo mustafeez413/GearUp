@@ -24,30 +24,20 @@ const StatCard = ({
   const tone = colorToTone(color);
   const isDown = trend === 'down' || (change && change.trim().startsWith('-'));
   const isNeutral = trend === 'neutral' || (change && !change.includes('%'));
-  const isRevenue = (label || '').toLowerCase().includes('revenue');
 
-  // Accent Line Mapping
-  const accentLine = {
-    primary: 'border-t-[#00A878]',
-    warning: 'border-t-[#F59E0B]',
-    danger: 'border-t-[#EF4444]'
-  }[tone];
+  // Tone color mapping
+  const toneClass = {
+    primary: 'accent-green',
+    warning: 'accent-amber',
+    danger: 'accent-red'
+  }[tone] || 'accent-slate';
 
-  // Icon Container Mapping
-  const iconStyle = {
-    primary: { bg: '#E8FFF5', border: 'rgba(0,168,120,.15)', shadow: 'rgba(0,168,120,.08)', color: '#00A878' },
-    warning: { bg: '#FFF7E6', border: 'rgba(245,158,11,.15)', shadow: 'rgba(245,158,11,.08)', color: '#F59E0B' },
-    danger:  { bg: '#FEF2F2', border: 'rgba(239,68,68,.15)', shadow: 'rgba(239,68,68,.08)', color: '#EF4444' }
-  }[tone];
-
-  // Trend Badge Mapping
   const trendStyle = {
-    up: { bg: '#E8FFF5', text: '#00A878', Icon: TrendingUp },
-    down: { bg: '#FEF2F2', text: '#EF4444', Icon: TrendingDown },
-    neutral: { bg: '#F1F5F9', text: '#64748B', Icon: Minus }
+    up: { bg: 'bg-emerald-50', text: 'text-emerald-700', Icon: TrendingUp },
+    down: { bg: 'bg-rose-50', text: 'text-rose-700', Icon: TrendingDown },
+    neutral: { bg: 'bg-slate-50', text: 'text-slate-600', Icon: Minus }
   }[isNeutral ? 'neutral' : isDown ? 'down' : 'up'];
 
-  // Parse `change` text to separate percentage from comparison text (e.g., "+16.4% vs last month")
   let changePrimary = change;
   let changeSecondary = '';
   if (change) {
@@ -66,77 +56,40 @@ const StatCard = ({
 
   const inner = (
     <div
-      className={`group flex flex-col relative transition-all duration-250 ease-in-out border-t-2 ${accentLine} ${loading ? 'opacity-60 animate-pulse' : ''}`}
-      style={{
-        minHeight: '220px',
-        maxHeight: '240px',
-        width: '260px',
-        background: '#FFFFFF',
-        border: '1px solid #EEF2F7',
-        borderRadius: '24px',
-        padding: '14px 16px',
-        boxShadow: '0 12px 30px rgba(15,23,42,.08)',
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.transform = 'translateY(-6px)';
-        e.currentTarget.style.boxShadow = '0 26px 70px rgba(15,23,42,.14)';
-        e.currentTarget.style.borderColor = '#00A878';
-        e.currentTarget.style.borderTopColor = '#00A878';
-        if (href) e.currentTarget.style.cursor = 'pointer';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.transform = 'translateY(0)';
-        e.currentTarget.style.boxShadow = '0 20px 50px rgba(15,23,42,.08)';
-        e.currentTarget.style.borderColor = '#E5E7EB';
-        e.currentTarget.style.borderTopColor = ''; // Reset to class-based top border color
-      }}
+      className={`kpi-card-enterprise ${toneClass} ${loading ? 'opacity-60 animate-pulse' : ''} flex flex-col justify-between h-full min-h-[140px] w-full`}
     >
       <div className="flex items-start justify-between gap-3">
-            <span 
-            className="text-[12px] font-semibold uppercase text-[#64748B] tracking-[0.8px] leading-tight"
-        >
-            {label}
+        <span className="text-[12px] sm:text-[13px] font-semibold text-[#64748B] uppercase tracking-wider leading-tight">
+          {label}
         </span>
         {Icon && (
-          <div 
-            className="w-9 h-9 flex items-center justify-center shrink-0"
-            style={{
-                background: iconStyle.bg,
-                border: `1px solid ${iconStyle.border}`,
-                borderRadius: '10px',
-                boxShadow: `0 2px 8px ${iconStyle.shadow}`,
-                color: iconStyle.color
-            }}
-          >
-            <Icon size={18} strokeWidth={2.5} />
+          <div className="w-9 h-9 flex items-center justify-center shrink-0 rounded-xl bg-slate-50 border border-slate-100 text-slate-500">
+            <Icon size={16} strokeWidth={2.5} />
           </div>
         )}
       </div>
 
-      <div className="mt-2 flex-1 flex flex-col justify-start min-w-0">
-        <span className="text-[28px] sm:text-[32px] font-black text-[#0F172A] tracking-tighter leading-none break-words">
+      <div className="mt-4 flex-1 flex flex-col justify-end">
+        <span className="text-[26px] sm:text-[30px] font-black text-[#0F172A] tracking-tight leading-none">
           {value}
         </span>
 
         {change && (
-          <div className="flex items-center justify-between gap-2 mt-2 flex-wrap">
-            <div className="flex items-center gap-2">
-                <span
-                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md font-bold text-[12px]"
-                style={{ background: trendStyle.bg, color: trendStyle.text }}
-                >
-                {!isNeutral && <trendStyle.Icon size={14} className="stroke-[2.5]" />}
+          <div className="flex items-center justify-between gap-2 mt-3 flex-wrap">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded font-bold text-[10px] ${trendStyle.bg} ${trendStyle.text}`}>
+                {!isNeutral && <trendStyle.Icon size={12} className="stroke-[2.5]" />}
                 {changePrimary}
+              </span>
+              {changeSecondary && (
+                <span className="text-[#64748B] text-[10px] font-medium truncate">
+                  {changeSecondary}
                 </span>
-                {changeSecondary && (
-                    <span className="text-[#64748B] text-[12px] font-medium">
-                        {changeSecondary}
-                    </span>
-                )}
+              )}
             </div>
             {href && (
-              <span className="text-[13px] font-semibold text-[#00A878] opacity-0 group-hover:opacity-100 flex items-center gap-1 transition-all duration-200 translate-x-[-4px] group-hover:translate-x-0 group-hover:underline">
-                Details <ArrowRight size={14} className="stroke-[2.5]" />
+              <span className="text-[11px] font-bold text-[#00A878] opacity-0 group-hover:opacity-100 flex items-center gap-0.5 transition-all duration-200">
+                Details <ArrowRight size={12} />
               </span>
             )}
           </div>
@@ -147,7 +100,7 @@ const StatCard = ({
 
   if (href) {
     return (
-      <Link href={href} className="block h-full outline-none">
+      <Link href={href} className="block w-full h-full">
         {inner}
       </Link>
     );

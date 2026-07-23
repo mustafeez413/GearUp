@@ -36,13 +36,13 @@ const SportsEquipment = () => {
                     {/* Search & Intelligence */}
                     <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8 mb-16 shadow-2xl shadow-slate-200/50 flex flex-col lg:flex-row gap-8 items-center">
                         <div className="relative flex-1 w-full">
-                            <Search className="absolute left-6 top-1/2 transform -translate-y-1/2 text-slate-400" size={24} />
+                            <Search className="absolute right-6 top-1/2 transform -translate-y-1/2 text-slate-400" size={24} />
                             <input
                                 type="text"
                                 placeholder="Search bulk products, manufacturers, or categories..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full pl-16 pr-6 py-6 border-2 border-slate-50 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-emerald-50/50 focus:border-emerald-500 focus:bg-white outline-none transition-all font-body text-xl"
+                                className="pl-6 pr-16 w-full py-6 border-2 border-slate-50 bg-slate-50 rounded-2xl focus:ring-4 focus:ring-emerald-50/50 focus:border-emerald-500 focus:bg-white outline-none transition-all font-body text-xl"
                             />
                         </div>
                         <div className="flex items-center gap-4 bg-emerald-50 px-6 py-3 rounded-2xl border border-emerald-100">

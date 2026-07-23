@@ -9,8 +9,8 @@ import GlobalChatbot from '../shared/GlobalChatbot';
 import Footer from '../shared/Footer';
 import SuspensionBanner from '../shared/SuspensionBanner';
 
-const SIDEBAR_FULL = 280;
-const SIDEBAR_COLLAPSED = 72;
+const SIDEBAR_FULL = 240;
+const SIDEBAR_COLLAPSED = 64;
 
 const DashboardLayout = ({ children }) => {
   const router = useRouter();
@@ -76,9 +76,9 @@ const DashboardLayout = ({ children }) => {
           isMobile={isMobile}
         />
 
-        <main className="flex-1 p-4 sm:p-5 lg:p-6 overflow-x-hidden min-w-0">
-          <div className="w-full min-w-0 max-w-[1480px] mx-auto">
-            <div className="seller-page-sheet min-h-[calc(100vh-8rem)] w-full">
+        <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-x-hidden min-w-0">
+          <div className="w-full min-w-0 max-w-[1600px] mx-auto">
+            <div className="min-h-[calc(100vh-10rem)] w-full">
               <SuspensionBanner />
               {children}
             </div>

@@ -20,6 +20,8 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { getAllPakistanCities, isRecognizedCity } from '@/lib/pakistanLocations';
+import { loadStripe } from '@stripe/stripe-js';
+import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
 
 const PAKISTAN_CITIES = getAllPakistanCities();
 
@@ -145,6 +147,8 @@ const SearchableCityInput = ({ value, onChange, errorState }) => {
 const WholesalerCheckoutPage = () => {
     const router = useRouter();
     const { user } = useAuth();
+    const stripe = useStripe();
+    const elements = useElements();
 
     const [cartItems, setCartItems] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -152,15 +156,12 @@ const WholesalerCheckoutPage = () => {
     const [success, setSuccess] = useState(false);
     const [error, setError] = useState(null);
     const [platformSettings, setPlatformSettings] = useState(null);
-    const [paymentProof, setPaymentProof] = useState(null);
-    const [uploaded, setUploaded] = useState(false);
     const [saveAddressChecked, setSaveAddressChecked] = useState(true);
-    const [paymentMode, setPaymentMode] = useState('platform_wallet');
-    const [walletBalance, setWalletBalance] = useState(null);
-    
-    // Drag & drop upload state
-    const [isDragOver, setIsDragOver] = useState(false);
-    const [uploadError, setUploadError] = useState(null);
+    const [paymentMode, setPaymentMode] = useState('stripe');
+
+    const [cardholderName, setCardholderName] = useState('');
+    const [cardComplete, setCardComplete] = useState(false);
+    const [createdOrderDetails, setCreatedOrderDetails] = useState(null);
 
     const [formData, setFormData] = useState({
         shippingAddress: '',
@@ -245,23 +246,6 @@ const WholesalerCheckoutPage = () => {
             }));
         }
 
-        const fetchWallet = async () => {
-            try {
-                const token = localStorage.getItem('token');
-                if (!token) return;
-                const res = await fetch(`${getApiBaseUrl()}/api/wallet/me`, {
-                    headers: { Authorization: `Bearer ${token}` }
-                });
-                const data = await res.json();
-                if (data.success) {
-                    setWalletBalance(data.data.balance ?? 0);
-                }
-            } catch {
-                setWalletBalance(0);
-            }
-        };
-        fetchWallet();
-
         // Fetch platform settings for payment details
         const fetchSettings = async () => {
             try {
@@ -308,41 +292,7 @@ const WholesalerCheckoutPage = () => {
         return isRecognizedCity(inputCity);
     };
 
-    const processFile = (file) => {
-        setUploadError(null);
-        if (file.size > 5 * 1024 * 1024) {
-            setUploadError("File size exceeds 5MB limit.");
-            return;
-        }
-        const allowedTypes = ['application/pdf', 'image/jpeg', 'image/png', 'image/jpg'];
-        if (!allowedTypes.includes(file.type)) {
-            setUploadError("Only PDF, JPG, and PNG are supported.");
-            return;
-        }
-        setPaymentProof(file);
-        setUploaded(true);
-    };
 
-    const handleFileChange = (e) => {
-        const file = e.target.files[0];
-        if (file) processFile(file);
-    };
-
-    const handleDragOver = (e) => {
-        e.preventDefault();
-        setIsDragOver(true);
-    };
-
-    const handleDragLeave = () => {
-        setIsDragOver(false);
-    };
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        setIsDragOver(false);
-        const file = e.dataTransfer.files[0];
-        if (file) processFile(file);
-    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -357,19 +307,16 @@ const WholesalerCheckoutPage = () => {
             return;
         }
 
-        const useWallet = paymentMode === 'platform_wallet';
-
-        if (!useWallet) {
-            if (!paymentProof) {
-                setError('Please upload a copy of your bank deposit or transfer slip to proceed.');
-                return;
-            }
-            if (!formData.transactionId) {
-                setError('Please enter the Transaction ID.');
-                return;
-            }
-        } else if (walletBalance !== null && totalAmount > walletBalance) {
-            setError(`Insufficient dummy wallet balance. You need PKR ${totalAmount.toLocaleString()} but have PKR ${walletBalance.toLocaleString()}.`);
+        if (!stripe || !elements) {
+            setError('Stripe has not loaded yet. Please try again.');
+            return;
+        }
+        if (!cardComplete) {
+            setError('Please enter complete credit card details.');
+            return;
+        }
+        if (!cardholderName) {
+            setError('Please enter the cardholder name.');
             return;
         }
 
@@ -379,21 +326,6 @@ const WholesalerCheckoutPage = () => {
         try {
             const token = localStorage.getItem('token');
             
-            let paymentProofPath = '';
-            if (!useWallet && paymentProof) {
-                const fileData = new FormData();
-                fileData.append('file', paymentProof);
-                const uploadRes = await fetch(`${getApiBaseUrl()}/api/upload`, {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${token}` },
-                    body: fileData
-                });
-                const uploadData = await uploadRes.json();
-                if (uploadData.success) {
-                    paymentProofPath = uploadData.filePath;
-                }
-            }
-
             // Save address check
             if (saveAddressChecked) {
                 localStorage.setItem('saved_checkout_address', JSON.stringify({
@@ -410,53 +342,94 @@ const WholesalerCheckoutPage = () => {
             const concatenatedAddress = `${formData.shippingAddress}${formData.area ? ', Area: ' + formData.area : ''}${formData.postalCode ? ', Postal: ' + formData.postalCode : ''}`;
             const combinedNotes = `${formData.notes}${formData.deliveryNotes ? ' | Loading instructions: ' + formData.deliveryNotes : ''}`;
 
-            const response = await fetch(`${getApiBaseUrl()}/api/orders`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${token}`
-                },
-                body: JSON.stringify({
-                    items: cartItems.map(item => ({
-                        product: item.productId,
-                        quantity: item.quantity,
-                        price: item.price
-                    })),
-                    shippingAddress: {
-                        address: concatenatedAddress,
-                        city: formData.city,
-                        phone: formData.contactNumber
+            let currentOrderId = createdOrderDetails?.orderId;
+            let currentClientSecret = createdOrderDetails?.clientSecret;
+
+            if (!currentOrderId || !currentClientSecret) {
+                // 1. Create order first in 'pending' state
+                const response = await fetch(`${getApiBaseUrl()}/api/orders`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
                     },
-                    paymentMethod: useWallet ? 'platform_wallet' : 'escrow_transfer',
-                    transactionReference: useWallet ? `WALLET-${Date.now()}` : formData.transactionId,
-                    notes: combinedNotes,
-                    paymentProof: paymentProofPath || undefined
-                })
+                    body: JSON.stringify({
+                        items: cartItems.map(item => ({
+                            product: item.productId,
+                            quantity: item.quantity,
+                            price: item.price
+                        })),
+                        shippingAddress: {
+                            address: concatenatedAddress,
+                            city: formData.city,
+                            phone: formData.contactNumber
+                        },
+                        paymentMethod: 'card_payment',
+                        notes: combinedNotes
+                    })
+                });
+
+                const orderData = await response.json();
+                if (!orderData.success) {
+                    throw new Error(orderData.error || 'Failed to create order.');
+                }
+
+                const createdOrder = orderData.data;
+                currentOrderId = createdOrder._id;
+
+                // 2. Call backend to create PaymentIntent for this order
+                const piResponse = await fetch(`${getApiBaseUrl()}/api/stripe/create-payment-intent`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        orderId: currentOrderId
+                    })
+                });
+
+                const piData = await piResponse.json();
+                if (!piData.success) {
+                    throw new Error(piData.error || 'Failed to initialize payment.');
+                }
+
+                currentClientSecret = piData.clientSecret;
+                setCreatedOrderDetails({ orderId: currentOrderId, clientSecret: currentClientSecret });
+            }
+
+            // 3. Confirm card payment on frontend
+            const cardElement = elements.getElement(CardElement);
+            const paymentResult = await stripe.confirmCardPayment(currentClientSecret, {
+                payment_method: {
+                    card: cardElement,
+                    billing_details: {
+                        name: cardholderName,
+                        phone: formData.contactNumber,
+                        address: {
+                            line1: formData.shippingAddress,
+                            city: formData.city,
+                            country: 'PK'
+                        }
+                    }
+                }
             });
 
-            const data = await response.json();
-            if (data.success) {
+            if (paymentResult.error) {
+                throw new Error(paymentResult.error.message || 'Payment confirmation failed.');
+            }
+
+            if (paymentResult.paymentIntent.status === 'succeeded') {
                 localStorage.removeItem('wholesaler_cart');
-                try {
-                    const walletRes = await fetch(`${getApiBaseUrl()}/api/wallet/me`, {
-                        headers: { Authorization: `Bearer ${token}` }
-                    });
-                    const walletData = await walletRes.json();
-                    if (walletData.success) {
-                        setWalletBalance(walletData.data.balance ?? 0);
-                    }
-                } catch {
-                    /* ignore */
-                }
                 setSuccess(true);
                 setTimeout(() => {
                     router.push('/wholesaler/orders');
                 }, 3000);
             } else {
-                setError(data.error || 'Order could not be placed.');
+                throw new Error('Payment status: ' + paymentResult.paymentIntent.status);
             }
         } catch (err) {
-            setError('Connection failure. Please try again.');
+            setError(err.message || 'Connection failure. Please try again.');
         } finally {
             setSubmitting(false);
         }
@@ -650,150 +623,53 @@ const WholesalerCheckoutPage = () => {
                         </div>
                     </div>
 
-                    {/* Payment Method Selector */}
+                    {/* Payment Method Details */}
                     <div className="bg-[#FFFFFF] rounded-[24px] border border-[#E5E7EB] p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] space-y-6">
                         <h3 className="font-sans text-[18px] font-[800] text-[#0F172A] tracking-tight flex items-center gap-3 border-b border-[#E5E7EB] pb-4">
-                            <CreditCard className="text-[#00A878]" size={20} /> Payment Method
+                            <CreditCard className="text-[#00A878]" size={20} /> Secure Card Payment
                         </h3>
 
-                        <div className="flex flex-wrap gap-2">
-                            <button
-                                type="button"
-                                onClick={() => setPaymentMode('platform_wallet')}
-                                className={`px-4 py-2 rounded-[14px] font-sans font-[700] text-[12px] uppercase tracking-wider border transition-all ${
-                                    paymentMode === 'platform_wallet'
-                                        ? 'bg-[#00A878] text-[#FFFFFF] border-[#00A878] shadow-[0_4px_12px_rgba(0,168,120,0.2)]'
-                                        : 'bg-[#F8FAFC] text-[#64748B] border-[#E5E7EB] hover:border-[#CBD5E1]'
-                                }`}
-                            >
-                                Dummy Wallet
-                            </button>
-                            <button
-                                type="button"
-                                onClick={() => setPaymentMode('escrow_transfer')}
-                                className={`px-4 py-2 rounded-[14px] font-sans font-[700] text-[12px] uppercase tracking-wider border transition-all ${
-                                    paymentMode === 'escrow_transfer'
-                                        ? 'bg-[#0F172A] text-[#FFFFFF] border-[#0F172A]'
-                                        : 'bg-[#F8FAFC] text-[#64748B] border-[#E5E7EB] hover:border-[#CBD5E1]'
-                                }`}
-                            >
-                                Bank Transfer
-                            </button>
-                        </div>
-
-                        {paymentMode === 'platform_wallet' && (
-                            <div className="bg-gradient-to-br from-[#071A35] to-[#1e3a5f] rounded-[20px] p-5 border border-[#FFFFFF]/10 text-[#FFFFFF] shadow-[0_8px_24px_rgba(7,26,53,0.15)] space-y-3">
-                                <div className="flex items-center justify-between">
-                                    <span className="font-sans text-[11px] font-[700] uppercase tracking-[0.1em] text-[#FFFFFF]/50">Prototype wallet balance</span>
-                                    <Lock size={14} className="text-[#00A878]" />
-                                </div>
-                                <div className="font-sans text-[28px] font-[800] tracking-tight text-[#00A878]">
-                                    PKR {typeof walletBalance === 'number' ? walletBalance.toLocaleString() : '…'}
-                                </div>
-                                <p className="font-sans text-[12px] text-[#FFFFFF]/60 leading-relaxed font-[500]">
-                                    No real payment gateway. On confirm, funds are deducted instantly and held in escrow per seller until you confirm delivery.
-                                </p>
-                            </div>
-                        )}
-
-                        {paymentMode === 'escrow_transfer' && (
-                        <div className="bg-[#F8FAFC] rounded-[20px] p-5 border border-[#E5E7EB] space-y-4">
-                            <h4 className="font-sans font-[800] text-[14px] text-[#0F172A] uppercase tracking-wider">Admin Verified Payment Process</h4>
-                            <p className="font-sans text-[13px] text-[#475569] leading-relaxed font-[500]">
-                                Please transfer the total order amount to one of the official GearUp payment accounts below.
-                                <br /><br />
-                                After completing the payment:<br />
-                                1. Upload your payment proof.<br />
-                                2. Enter your transaction ID.<br />
-                                3. Submit for verification.<br /><br />
-                                The GearUp Administrator will review and verify your payment before order processing begins.
-                            </p>
-                            <div className="grid sm:grid-cols-3 gap-3">
-                                <div className="bg-[#FFFFFF] p-4 rounded-[16px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                                    <h5 className="font-sans font-[700] text-[11px] text-[#64748B] uppercase tracking-widest mb-1 flex items-center gap-1.5"><Building2 size={12}/> Bank Transfer</h5>
-                                    <div className="font-sans text-[13px] font-[700] text-[#0F172A]">{platformSettings?.platformBankDetails?.bankName || 'Loading...'}</div>
-                                    <div className="font-sans text-[12px] font-[500] text-[#475569]">A/C: {platformSettings?.platformBankDetails?.accountNumber || 'Loading...'}</div>
-                                    <div className="font-sans text-[12px] font-[500] text-[#475569] mt-1">Title: {platformSettings?.platformBankDetails?.accountTitle || 'Loading...'}</div>
-                                </div>
-                                <div className="bg-[#FFFFFF] p-4 rounded-[16px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                                    <h5 className="font-sans font-[700] text-[11px] text-[#64748B] uppercase tracking-widest mb-1 flex items-center gap-1.5"><Zap size={12}/> JazzCash</h5>
-                                    <div className="font-sans text-[13px] font-[700] text-[#0F172A]">{platformSettings?.platformMobileMoney?.jazzCashNumber || 'Loading...'}</div>
-                                    <div className="font-sans text-[12px] font-[500] text-[#475569] mt-1">Title: {platformSettings?.platformBankDetails?.accountTitle || 'Loading...'}</div>
-                                </div>
-                                <div className="bg-[#FFFFFF] p-4 rounded-[16px] border border-[#E5E7EB] shadow-[0_2px_8px_rgba(15,23,42,0.04)]">
-                                    <h5 className="font-sans font-[700] text-[11px] text-[#64748B] uppercase tracking-widest mb-1 flex items-center gap-1.5"><Zap size={12}/> Easypaisa</h5>
-                                    <div className="font-sans text-[13px] font-[700] text-[#0F172A]">{platformSettings?.platformMobileMoney?.easypaisaNumber || 'Loading...'}</div>
-                                    <div className="font-sans text-[12px] font-[500] text-[#475569] mt-1">Title: {platformSettings?.platformBankDetails?.accountTitle || 'Loading...'}</div>
-                                </div>
-                            </div>
-                            <div className="mt-4 pt-4 border-t border-emerald-100/50">
+                        <div className="bg-[#F8FAFC] rounded-[20px] p-5 border border-[#E5E7EB] space-y-4 animate-fadeIn">
+                            <h4 className="font-sans font-[800] text-[14px] text-[#0F172A] uppercase tracking-wider">Credit or Debit Card</h4>
+                            <div className="space-y-4">
                                 <div className="space-y-2">
-                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest inline-block mb-1.5 ml-1">Transaction ID <span className="text-[#EF4444]">*</span></label>
+                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Cardholder Name <span className="text-[#EF4444]">*</span></label>
                                     <input
                                         required
                                         type="text"
-                                        value={formData.transactionId || ''}
-                                        onChange={(e) => setFormData({ ...formData, transactionId: e.target.value })}
+                                        value={cardholderName}
+                                        onChange={(e) => setCardholderName(e.target.value)}
                                         className="w-full bg-[#FFFFFF] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm"
-                                        placeholder="e.g. TID123456789"
+                                        placeholder="e.g. Mustafeez ur Rehman"
                                     />
+                                </div>
+                                <div className="space-y-2">
+                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Card Details <span className="text-[#EF4444]">*</span></label>
+                                    <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[16px] px-5 py-4 focus-within:border-[#00A878] focus-within:ring-4 focus-within:ring-[#00A878]/10 transition-all">
+                                        <CardElement 
+                                            options={{
+                                                style: {
+                                                    base: {
+                                                        fontSize: '14px',
+                                                        color: '#0F172A',
+                                                        fontFamily: 'Inter, sans-serif',
+                                                        fontWeight: '600',
+                                                        '::placeholder': {
+                                                            color: '#94A3B8',
+                                                        },
+                                                    },
+                                                    invalid: {
+                                                        color: '#EF4444',
+                                                    },
+                                                },
+                                            }} 
+                                            onChange={(e) => setCardComplete(e.complete)} 
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         </div>
-                        )}
                     </div>
-
-                    {/* Bank Transfer Receipt Upload */}
-                    {paymentMode === 'escrow_transfer' && (
-                    <div className="bg-[#FFFFFF] rounded-[24px] border border-[#E5E7EB] p-6 shadow-[0_8px_24px_rgba(15,23,42,0.04)] space-y-6 animate-fadeIn">
-                        <h3 className="font-sans text-[18px] font-[800] text-[#0F172A] tracking-tight flex items-center gap-3 border-b border-[#E5E7EB] pb-4">
-                            <Upload className="text-[#00A878]" size={20} /> Payment Receipt Verification
-                        </h3>
-                        
-                        <div className="space-y-4">
-                            <p className="font-sans text-[12px] text-[#94A3B8] uppercase tracking-widest leading-relaxed">
-                                Upload a PDF, JPG, or PNG copy of your payment proof (Max 5MB) to initiate order fulfillment. Your proof will ONLY be sent to Admin.
-                            </p>
-                            <div
-                                onDragOver={handleDragOver}
-                                onDragLeave={handleDragLeave}
-                                onDrop={handleDrop}
-                                className={`border-2 border-dashed rounded-2xl p-8 text-center transition-all cursor-pointer ${
-                                    uploaded ? 'border-emerald-500 bg-emerald-50/20' : 
-                                    isDragOver ? 'border-emerald-500 bg-slate-50' : 'border-slate-200 hover:border-emerald-500 hover:bg-slate-50'
-                                }`}
-                            >
-                                <input
-                                    type="file"
-                                    id="paymentProof"
-                                    onChange={handleFileChange}
-                                    accept=".pdf,.jpg,.jpeg,.png"
-                                    className="hidden"
-                                />
-                                <label htmlFor="paymentProof" className="cursor-pointer block w-full h-full">
-                                    {uploaded ? (
-                                        <div className="flex flex-col items-center justify-center">
-                                            <CheckCircle className="text-[#00A878] mb-2" size={32} />
-                                            <span className="font-sans text-[12px] text-[#065F46] font-[700]">{paymentProof?.name}</span>
-                                            <span className="text-[9px] font-sans text-[#94A3B8] uppercase tracking-widest mt-1">Click to change file</span>
-                                        </div>
-                                    ) : (
-                                        <div className="flex flex-col items-center justify-center">
-                                            <Upload className="text-slate-300 mb-2" size={32} />
-                                            <span className="font-sans text-[12px] text-[#64748B] font-[700] uppercase tracking-wider block">Drag &amp; Drop receipt here</span>
-                                            <span className="text-[9px] font-sans text-[#94A3B8] uppercase tracking-widest mt-1">or Click to select file</span>
-                                        </div>
-                                    )}
-                                </label>
-                            </div>
-                            {uploadError && (
-                                <p className="text-[10px] font-sans font-[800] text-[#EF4444] uppercase tracking-widest animate-pulse flex items-center gap-1.5">
-                                    <AlertCircle size={12} /> {uploadError}
-                                </p>
-                            )}
-                        </div>
-                    </div>
-                    )}
 
                 </div>
 
@@ -841,7 +717,7 @@ const WholesalerCheckoutPage = () => {
                                     </>
                                 ) : (
                                     <>
-                                        {paymentMode === 'platform_wallet' ? 'Confirm Payment' : 'Confirm & Place Order'} <ArrowRight size={16} className="group-hover:translate-x-1.5 transition-transform" />
+                                        Confirm Payment <ArrowRight size={16} className="group-hover:translate-x-1.5 transition-transform" />
                                     </>
                                 )}
                             </button>
@@ -881,4 +757,12 @@ const WholesalerCheckoutPage = () => {
     );
 };
 
-export default WholesalerCheckoutPage;
+const stripePromise = loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '');
+
+const WholesalerCheckoutPageWrapper = () => (
+    <Elements stripe={stripePromise}>
+        <WholesalerCheckoutPage />
+    </Elements>
+);
+
+export default WholesalerCheckoutPageWrapper;

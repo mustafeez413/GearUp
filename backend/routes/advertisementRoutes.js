@@ -7,7 +7,7 @@ const {
   getBillingHistory,
   createCampaign,
   updateCampaign,
-  payCampaign,
+  createCheckoutSession,
   pauseCampaign,
   resumeCampaign,
   cancelCampaign,
@@ -28,7 +28,8 @@ const {
   rejectCampaign,
   expireCampaign,
   extendCampaign,
-  deleteCampaign
+  deleteCampaign,
+  getCampaignById
 } = require('../controllers/advertisementController');
 const {
   getPricingCenter,
@@ -61,8 +62,9 @@ router.use(protect);
 router.get('/mine', authorize('manufacturer'), getMyCampaigns);
 router.get('/billing/history', authorize('manufacturer'), getBillingHistory);
 router.post('/', authorize('manufacturer'), createCampaign);
+router.get('/:id', authorize('admin', 'manufacturer'), getCampaignById);
 router.put('/:id', authorize('manufacturer'), updateCampaign);
-router.post('/:id/pay', authorize('manufacturer'), payCampaign);
+router.post('/:id/checkout', authorize('manufacturer'), createCheckoutSession);
 router.post('/:id/pause', authorize('manufacturer', 'admin'), pauseCampaign);
 router.post('/:id/resume', authorize('manufacturer', 'admin'), resumeCampaign);
 router.post('/:id/cancel', authorize('manufacturer'), cancelCampaign);

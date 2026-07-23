@@ -143,6 +143,23 @@ async function expireDueCampaigns() {
   return due.length;
 }
 
+async function activateScheduledCampaigns() {
+  const now = new Date();
+  const scheduled = await Advertisement.find({
+    status: 'scheduled',
+    startDate: { $lte: now }
+  });
+
+  for (const ad of scheduled) {
+    await transitionCampaign(ad, 'active', {
+      reason: 'auto_activation',
+      notes: `Scheduled start date reached (${ad.startDate?.toISOString()})`
+    });
+  }
+
+  return scheduled.length;
+}
+
 async function extendCampaignEndDate(ad, { days, endDate, performedBy, reason = 'admin_extend' }) {
   const previousEndDate = ad.endDate ? new Date(ad.endDate) : null;
   const wasExpired = ad.status === 'expired';
@@ -198,6 +215,7 @@ module.exports = {
   transitionCampaign,
   expireCampaignRecord,
   expireDueCampaigns,
+  activateScheduledCampaigns,
   extendCampaignEndDate,
   logStatusChange
 };

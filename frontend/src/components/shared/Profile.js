@@ -9,7 +9,8 @@ import {
     normalizeProvince,
     PAKISTAN_PROVINCES,
 } from '@/lib/pakistanLocations';
-import { User, Building, Mail, Phone, MapPin, Camera, ShieldCheck, FileText, CheckCircle, AlertCircle, Building2, Trash2, Pencil, Save, X, Lock, Eye, EyeOff, KeyRound, Clock } from 'lucide-react';
+import { User, Building, Mail, Phone, MapPin, Camera, ShieldCheck, FileText, CheckCircle, AlertCircle, Building2, Trash2, Pencil, Save, X, Lock, Eye, EyeOff, KeyRound, Clock, Settings } from 'lucide-react';
+import { useSearchParams, usePathname } from 'next/navigation';
 import VerificationStatusBanner from '@/components/shared/VerificationStatusBanner';
 import useReadOnlyMode from '@/hooks/useReadOnlyMode';
 import { getVerificationDisplayState } from '@/lib/verificationStats';
@@ -55,15 +56,53 @@ const UserProfile = ({ isDashboard = false }) => {
     const [validationError, setValidationError] = useState(null);
     const [successMessage, setSuccessMessage] = useState(null);
 
-    // Change Password state
+    // Password change states
     const [showChangePassword, setShowChangePassword] = useState(false);
-    const [passwordForm, setPasswordForm] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+    const [changingPassword, setChangingPassword] = useState(false);
+    const [passwordForm, setPasswordForm] = useState({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+    });
+    const [pwError, setPwError] = useState(null);
+    const [pwSuccess, setPwSuccess] = useState(null);
     const [showCurrentPw, setShowCurrentPw] = useState(false);
     const [showNewPw, setShowNewPw] = useState(false);
     const [showConfirmPw, setShowConfirmPw] = useState(false);
-    const [changingPassword, setChangingPassword] = useState(false);
-    const [pwError, setPwError] = useState(null);
-    const [pwSuccess, setPwSuccess] = useState(null);
+
+    const searchParams = useSearchParams();
+    const pathname = usePathname();
+
+    // Navigation tab state ('account' | 'settings')
+    const [activeTab, setActiveTab] = useState(() => {
+        if (typeof window !== 'undefined') {
+            const params = new URLSearchParams(window.location.search);
+            const tabParam = params.get('tab');
+            if (tabParam === 'settings') return 'settings';
+            if (tabParam === 'account') return 'account';
+            if (window.location.pathname.includes('settings')) return 'settings';
+        }
+        return 'account';
+    });
+
+    useEffect(() => {
+        const tabParam = searchParams?.get('tab');
+        if (tabParam === 'settings') {
+            setActiveTab('settings');
+        } else if (tabParam === 'account') {
+            setActiveTab('account');
+        } else if (pathname?.includes('settings')) {
+            setActiveTab('settings');
+        } else {
+            setActiveTab('account');
+        }
+    }, [searchParams, pathname]);
+
+    useEffect(() => {
+        if (activeTab === 'settings') {
+            setShowChangePassword(true);
+        }
+    }, [activeTab]);
 
     useEffect(() => {
         setFormData(buildProfileFormState(user));
@@ -274,97 +313,7 @@ const UserProfile = ({ isDashboard = false }) => {
             return;
         }
 
-        // PAYMENT DETAILS VALIDATION
-        if (user?.role === 'admin') {
-            const hasBank = !!(formData.bankName || formData.accountTitle || formData.accountNumber);
-            const hasJazzCash = !!formData.jazzCashNumber;
-            const hasEasypaisa = !!formData.easypaisaNumber;
 
-            if (!hasBank && !hasJazzCash && !hasEasypaisa) {
-                setValidationError('Please provide at least one valid payout method (Bank, JazzCash, or Easypaisa).');
-                return;
-            }
-
-            if (hasBank) {
-                if (!validateBankName(formData.bankName)) {
-                    setValidationError('Bank Name is required if using bank account (3-50 chars, letters/spaces only).');
-                    return;
-                }
-                if (!validateAccountTitle(formData.accountTitle)) {
-                    setValidationError('Account Title is required if using bank account (3-100 chars).');
-                    return;
-                }
-                if (!validateAccountNumber(formData.accountNumber)) {
-                    setValidationError('Account Number is required if using bank account (8-24 digits).');
-                    return;
-                }
-            }
-
-            if (formData.iban && !validateIBAN(formData.iban)) {
-                setValidationError('IBAN must start with PK and be exactly 24 characters long.');
-                return;
-            }
-
-            if (formData.jazzCashNumber && !validateMobileMoney(formData.jazzCashNumber)) {
-                setValidationError('JazzCash number must be exactly 11 digits starting with 03 (e.g. 03001234567).');
-                return;
-            }
-
-            if (formData.easypaisaNumber && !validateMobileMoney(formData.easypaisaNumber)) {
-                setValidationError('Easypaisa number must be exactly 11 digits starting with 03 (e.g. 03451234567).');
-                return;
-            }
-        } else {
-            // SELLER VALIDATION
-            if (!formData.accountTitle || !validateAccountTitle(formData.accountTitle)) {
-                setValidationError('Account Holder Name is required (3-100 chars).');
-                return;
-            }
-
-            if (formData.paymentMethodType === 'Bank Account') {
-                if (!validateBankName(formData.bankName)) {
-                    setValidationError('Bank Name is required (3-50 chars, letters/spaces only).');
-                    return;
-                }
-                if (!validateAccountNumber(formData.accountNumber)) {
-                    setValidationError('Account Number is required (8-24 digits).');
-                    return;
-                }
-                if (formData.iban && !validateIBAN(formData.iban)) {
-                    setValidationError('IBAN must start with PK and be exactly 24 characters long.');
-                    return;
-                }
-            } else if (formData.paymentMethodType === 'JazzCash') {
-                if (!validateMobileMoney(formData.jazzCashNumber)) {
-                    setValidationError('JazzCash number must be exactly 11 digits starting with 03.');
-                    return;
-                }
-            } else if (formData.paymentMethodType === 'Easypaisa') {
-                if (!validateMobileMoney(formData.easypaisaNumber)) {
-                    setValidationError('Easypaisa number must be exactly 11 digits starting with 03.');
-                    return;
-                }
-            } else if (formData.paymentMethodType === 'SadaPay') {
-                if (!validateMobileMoney(formData.sadaPayNumber)) {
-                    setValidationError('SadaPay number must be exactly 11 digits starting with 03.');
-                    return;
-                }
-            } else if (formData.paymentMethodType === 'NayaPay') {
-                if (!validateMobileMoney(formData.nayaPayNumber)) {
-                    setValidationError('NayaPay number must be exactly 11 digits starting with 03.');
-                    return;
-                }
-            } else if (formData.paymentMethodType === 'Other') {
-                if (!formData.otherWalletName || formData.otherWalletName.length < 3) {
-                    setValidationError('Please provide a valid Wallet Name (min 3 chars).');
-                    return;
-                }
-                if (!formData.otherWalletNumber || formData.otherWalletNumber.length < 5) {
-                    setValidationError('Please provide a valid Wallet Number (min 5 chars).');
-                    return;
-                }
-            }
-        }
 
         try {
             setIsSaving(true);
@@ -643,14 +592,45 @@ const UserProfile = ({ isDashboard = false }) => {
             <div className="w-full mx-auto">
                 
                 {/* Header Row */}
-                <div className="flex flex-col items-center text-center gap-4 pb-8 mb-10 border-b border-[#E5E7EB]">
+                <div className="flex flex-col items-center text-center gap-4 pb-8 mb-6 border-b border-[#E5E7EB]">
                     <div>
                         <h2 className="text-[36px] font-[800] text-[#0F172A] leading-tight tracking-tight">
-                            Business Profile
+                            {activeTab === 'settings' ? 'Account Settings & Security' : 'My Account'}
                         </h2>
                         <p className="text-[16px] text-[#64748B] mt-2 font-medium">
-                            Manage your enterprise identity, verified details, and payouts.
+                            {activeTab === 'settings'
+                                ? 'Manage your password, security preferences, and account controls.'
+                                : 'Manage your personal information, company profile, and business details.'}
                         </p>
+                    </div>
+
+                    {/* Navigation Sub-Tabs */}
+                    <div className="flex items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('account')}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                                activeTab === 'account'
+                                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+                                    : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <User size={14} /> My Account
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setActiveTab('settings');
+                                setShowChangePassword(true);
+                            }}
+                            className={`flex items-center gap-2 px-5 py-2 rounded-xl text-xs font-bold transition-all ${
+                                activeTab === 'settings'
+                                    ? 'bg-white text-slate-900 shadow-sm border border-slate-200/80'
+                                    : 'text-slate-500 hover:text-slate-900'
+                            }`}
+                        >
+                            <Settings size={14} /> Settings & Security
+                        </button>
                     </div>
 
                     {!isEditing && !isReadOnlyMode ? (
@@ -684,6 +664,7 @@ const UserProfile = ({ isDashboard = false }) => {
                     )}
                 </div>
 
+                {activeTab === 'account' ? (
                 <div className="grid lg:grid-cols-3 gap-8 items-start mt-8">
                     {/* Left Column: Visual Profile Card & Account Status */}
                     <div className="lg:col-span-1 space-y-6">
@@ -1004,146 +985,7 @@ const UserProfile = ({ isDashboard = false }) => {
                                     />
                                 </div>
 
-                                {/* Payment Details Section */}
-                                <div className="pt-8 mt-8 border-t border-slate-100 space-y-6">
-                                    <div className="flex flex-col mb-2">
-                                        <h3 className="font-heading text-lg font-black text-slate-900 tracking-tight flex items-center gap-2">
-                                            {user?.role === 'admin' ? 'Platform Payment Accounts' : 'Payment Details'} 
-                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-2 py-0.5 rounded font-bold uppercase tracking-widest">
-                                                {user?.role === 'admin' ? 'Global Settings' : 'Required for Payouts'}
-                                            </span>
-                                        </h3>
-                                        <p className="text-[13px] text-slate-500 font-medium mt-1">Configure where funds should be deposited after successful orders.</p>
-                                    </div>
-                                    
-                                    {user?.role === 'admin' ? (
-                                        <div className="grid md:grid-cols-2 gap-6">
-                                            {/* Legacy Admin View */}
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Bank Name</label>
-                                                <input type="text" name="bankName" value={formData.bankName} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.bankName && !validateBankName(formData.bankName) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.bankName && validateBankName(formData.bankName) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="e.g. Meezan Bank" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Account Title</label>
-                                                <input type="text" name="accountTitle" value={formData.accountTitle} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.accountTitle && !validateAccountTitle(formData.accountTitle) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.accountTitle && validateAccountTitle(formData.accountTitle) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="e.g. Asad Sports Ltd" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Account Number</label>
-                                                <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.accountNumber && !validateAccountNumber(formData.accountNumber) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.accountNumber && validateAccountNumber(formData.accountNumber) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="Account Number" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">IBAN</label>
-                                                <input type="text" name="iban" value={formData.iban} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.iban && !validateIBAN(formData.iban) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.iban && validateIBAN(formData.iban) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="PK00 XXXX 0000 0000 0000 0000" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">JazzCash Number</label>
-                                                <input type="text" name="jazzCashNumber" value={formData.jazzCashNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.jazzCashNumber && !validateMobileMoney(formData.jazzCashNumber) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.jazzCashNumber && validateMobileMoney(formData.jazzCashNumber) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="JazzCash Mobile Number" />
-                                            </div>
-                                            <div className="space-y-2">
-                                                <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Easypaisa Number</label>
-                                                <input type="text" name="easypaisaNumber" value={formData.easypaisaNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.easypaisaNumber && !validateMobileMoney(formData.easypaisaNumber) ? 'border-red-300 focus:ring-red-50 focus:border-red-500' : formData.easypaisaNumber && validateMobileMoney(formData.easypaisaNumber) ? 'border-emerald-300 focus:border-emerald-500' : 'border-slate-200'}`} placeholder="Easypaisa Mobile Number" />
-                                            </div>
-                                        </div>
-                                    ) : (
-                                        <div className="space-y-6">
-                                            {/* Seller View */}
-                                            <div className="grid md:grid-cols-2 gap-6">
-                                                <div className="space-y-2 md:col-span-2">
-                                                    <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Payout Method</label>
-                                                    
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 max-w-2xl mt-1">
-                                                        {['Bank Account', 'JazzCash', 'Easypaisa', 'Other'].map(method => (
-                                                            <div 
-                                                                key={method}
-                                                                onClick={() => isEditing && setFormData(prev => ({...prev, paymentMethodType: method}))}
-                                                                className={`relative flex flex-col items-center justify-center py-4 px-3 rounded-xl border-[2px] transition-all duration-200 select-none ${isEditing ? 'cursor-pointer hover:-translate-y-0.5' : ''} ${
-                                                                    formData.paymentMethodType === method 
-                                                                        ? 'border-[#00A878] bg-[#00A878]/[0.03] shadow-[0_4px_12px_rgba(0,168,120,0.1)]' 
-                                                                        : 'border-slate-200 hover:border-slate-300 bg-white shadow-sm'
-                                                                } ${!isEditing && formData.paymentMethodType !== method ? 'opacity-40 cursor-not-allowed' : ''}`}
-                                                            >
-                                                                <span className={`text-[13px] font-bold ${formData.paymentMethodType === method ? 'text-[#00A878]' : 'text-slate-600'}`}>{method}</span>
-                                                                {formData.paymentMethodType === method && (
-                                                                    <div className="absolute top-2.5 right-2.5 text-[#00A878] animate-in zoom-in duration-200">
-                                                                        <CheckCircle size={15} className="fill-current text-white bg-[#00A878] rounded-full" />
-                                                                    </div>
-                                                                )}
-                                                            </div>
-                                                        ))}
-                                                    </div>
-                                                </div>
 
-                                                <div className="space-y-2 mt-4">
-                                                    <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Account Holder Name</label>
-                                                    <input type="text" name="accountTitle" value={formData.accountTitle} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 focus:ring-4 focus:ring-emerald-50 focus:border-emerald-500 transition-all duration-200 font-body text-slate-900 font-bold text-sm placeholder:text-slate-400 disabled:opacity-60 disabled:cursor-not-allowed ${formData.accountTitle && !validateAccountTitle(formData.accountTitle) ? 'border-red-300 focus:ring-red-50' : formData.accountTitle ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="Full Name on Account" />
-                                                </div>
-
-                                                {formData.paymentMethodType === 'Bank Account' && (
-                                                    <>
-                                                        <div className="space-y-2">
-                                                            <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Bank Name</label>
-                                                            <input type="text" name="bankName" value={formData.bankName} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.bankName && !validateBankName(formData.bankName) ? 'border-red-300 focus:ring-red-50' : formData.bankName ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="e.g. Meezan Bank" />
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Account Number</label>
-                                                            <input type="text" name="accountNumber" value={formData.accountNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.accountNumber && !validateAccountNumber(formData.accountNumber) ? 'border-red-300 focus:ring-red-50' : formData.accountNumber ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="Account Number" />
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">IBAN (Optional)</label>
-                                                            <input type="text" name="iban" value={formData.iban} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.iban && !validateIBAN(formData.iban) ? 'border-red-300 focus:ring-red-50' : formData.iban ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="PK00..." />
-                                                        </div>
-                                                    </>
-                                                )}
-                                                
-                                                {formData.paymentMethodType === 'JazzCash' && (
-                                                    <div className="space-y-2">
-                                                        <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">JazzCash Number</label>
-                                                        <input type="text" name="jazzCashNumber" value={formData.jazzCashNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.jazzCashNumber && !validateMobileMoney(formData.jazzCashNumber) ? 'border-red-300 focus:ring-red-50' : formData.jazzCashNumber ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="03XXXXXXXXX" />
-                                                    </div>
-                                                )}
-                                                
-                                                {formData.paymentMethodType === 'Easypaisa' && (
-                                                    <div className="space-y-2">
-                                                        <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Easypaisa Number</label>
-                                                        <input type="text" name="easypaisaNumber" value={formData.easypaisaNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.easypaisaNumber && !validateMobileMoney(formData.easypaisaNumber) ? 'border-red-300 focus:ring-red-50' : formData.easypaisaNumber ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="03XXXXXXXXX" />
-                                                    </div>
-                                                )}
-                                                
-                                                {formData.paymentMethodType === 'SadaPay' && (
-                                                    <div className="space-y-2">
-                                                        <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">SadaPay Number</label>
-                                                        <input type="text" name="sadaPayNumber" value={formData.sadaPayNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.sadaPayNumber && !validateMobileMoney(formData.sadaPayNumber) ? 'border-red-300 focus:ring-red-50' : formData.sadaPayNumber ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="03XXXXXXXXX" />
-                                                    </div>
-                                                )}
-
-                                                {formData.paymentMethodType === 'NayaPay' && (
-                                                    <div className="space-y-2">
-                                                        <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">NayaPay Number</label>
-                                                        <input type="text" name="nayaPayNumber" value={formData.nayaPayNumber} onChange={handleChange} disabled={!isEditing} className={`w-full px-4 py-3 bg-slate-50 border rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm ${formData.nayaPayNumber && !validateMobileMoney(formData.nayaPayNumber) ? 'border-red-300 focus:ring-red-50' : formData.nayaPayNumber ? 'border-emerald-300' : 'border-slate-200'}`} placeholder="03XXXXXXXXX" />
-                                                    </div>
-                                                )}
-
-                                                {formData.paymentMethodType === 'Other' && (
-                                                    <>
-                                                        <div className="space-y-2">
-                                                            <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Wallet / Bank Name</label>
-                                                            <input type="text" name="otherWalletName" value={formData.otherWalletName} onChange={handleChange} disabled={!isEditing} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm" placeholder="e.g. UBL Omni" />
-                                                        </div>
-                                                        <div className="space-y-2">
-                                                            <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Wallet / Account Number</label>
-                                                            <input type="text" name="otherWalletNumber" value={formData.otherWalletNumber} onChange={handleChange} disabled={!isEditing} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm" placeholder="Number" />
-                                                        </div>
-                                                    </>
-                                                )}
-
-                                                <div className="space-y-2 md:col-span-2">
-                                                    <label className="flex items-center gap-2 font-body font-bold text-[11px] uppercase tracking-widest text-slate-500">Optional Notes</label>
-                                                    <input type="text" name="paymentNotes" value={formData.paymentNotes} onChange={handleChange} disabled={!isEditing} className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none hover:border-slate-300 transition-all font-body text-slate-900 font-bold text-sm placeholder:text-slate-400" placeholder="e.g. Please transfer to this branch code..." />
-                                                </div>
-                                            </div>
-                                        </div>
-                                    )}
-                                </div>
 
                                 {isEditing && (
                                     <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex items-start gap-3">
@@ -1160,20 +1002,20 @@ const UserProfile = ({ isDashboard = false }) => {
                         </div>
                     </div>
                 </div>
-
-                {/* Security Section */}
-                {user?.authProvider !== 'google' && (
-                    <div className="mt-8">
-                        <div className="flex flex-col items-center text-center gap-3 mb-8">
-                            <div>
-                                <h2 className="text-[24px] font-[800] text-[#0F172A] leading-tight tracking-tight">Security Settings</h2>
-                                <p className="text-[15px] text-[#64748B] mt-1 font-medium">Manage your password and account security preferences.</p>
-                            </div>
-                            <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 text-[12px] font-bold mt-1">
-                                <ShieldCheck size={14} /> High Security Active
-                            </div>
+                ) : (
+                /* Settings & Security Section */
+                <div className="mt-8 space-y-6">
+                    <div className="flex flex-col items-center text-center gap-3 mb-8">
+                        <div>
+                            <h2 className="text-[24px] font-[800] text-[#0F172A] leading-tight tracking-tight">Security Settings</h2>
+                            <p className="text-[15px] text-[#64748B] mt-1 font-medium">Manage your password and account security preferences.</p>
                         </div>
+                        <div className="flex items-center gap-2 px-4 py-1.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100 text-[12px] font-bold mt-1">
+                            <ShieldCheck size={14} /> High Security Active
+                        </div>
+                    </div>
 
+                    {user?.authProvider !== 'google' && (
                         <div className="bg-white rounded-[16px] border border-[#E5E7EB] shadow-[0_8px_24px_rgba(15,23,42,0.05)] overflow-hidden">
                             {/* Toggle Header */}
                             <button
@@ -1306,7 +1148,8 @@ const UserProfile = ({ isDashboard = false }) => {
                                 </div>
                             )}
                         </div>
-                    </div>
+                    )}
+                </div>
                 )}
             </div>
 

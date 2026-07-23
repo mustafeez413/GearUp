@@ -7,6 +7,7 @@ const Refund = require('../models/Refund');
 const Payout = require('../models/Payout');
 const AuditLog = require('../models/AuditLog');
 const { recordOrderPaymentTransactions, reverseOrderPaymentTransactions } = require('../utils/orderTransactionSync');
+const sendEmail = require('../utils/sendEmail');
 
 // @desc    Get all transactions with filters (Admin only)
 // @route   GET /api/transactions/admin
@@ -350,24 +351,25 @@ exports.releaseSettlement = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Transaction not found' });
         }
 
-        if (transaction.status !== 'Pending') {
-            return res.status(400).json({ success: false, error: 'Transaction is not pending' });
+        if (transaction.status !== 'Pending' && transaction.status !== 'Held') {
+            return res.status(400).json({ success: false, error: 'Transaction is not pending or held' });
         }
 
-        transaction.status = 'Completed';
-        await transaction.save();
+        const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
+        await releaseOrderPaymentTransactionally(transaction.order._id);
+
+        const updatedTx = await Transaction.findById(req.params.id).populate('seller', 'email name').populate('order', '_id');
 
         // Email Automation: Notify Manufacturer of settlement release
         try {
-            if (transaction.seller && transaction.seller.email) {
-                const sendEmail = require('../utils/sendEmail');
+            if (updatedTx.seller && updatedTx.seller.email) {
                 await sendEmail({
-                    email: transaction.seller.email,
-                    subject: `Settlement Released - Order #${transaction.order._id.toString().slice(-6)}`,
+                    email: updatedTx.seller.email,
+                    subject: `Settlement Released - Order #${updatedTx.order._id.toString().slice(-6)}`,
                     html: `<h3>Payment Settlement Released</h3>
-                           <p>Hi ${transaction.seller.name},</p>
-                           <p>The settlement for order <b>#${transaction.order._id.toString().slice(-6)}</b> has been successfully released to your wallet.</p>
-                           <p>Amount: PKR ${transaction.sellerAmount}</p>
+                           <p>Hi ${updatedTx.seller.name},</p>
+                           <p>The settlement for order <b>#${updatedTx.order._id.toString().slice(-6)}</b> has been successfully released.</p>
+                           <p>Amount: PKR ${updatedTx.sellerAmount}</p>
                            <p>You can view the transaction details in your dashboard.</p>`
                 });
             }
@@ -378,7 +380,7 @@ exports.releaseSettlement = async (req, res, next) => {
         res.status(200).json({
             success: true,
             message: 'Settlement released successfully',
-            data: transaction
+            data: updatedTx
         });
     } catch (error) {
         res.status(500).json({ success: false, error: 'Server error releasing settlement' });
@@ -398,91 +400,36 @@ exports.createRefund = async (req, res, next) => {
         }
 
         // Ensure commission transactions exist (wallet / legacy orders may lack them)
-        let txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid'] } });
-        if (txs.length === 0 && (order.isPaymentVerified || order.paymentStatus === 'verified')) {
+        let txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid', 'Held', 'Released'] } });
+        if (txs.length === 0 && (order.isPaymentVerified || ['verified', 'Held'].includes(order.paymentStatus))) {
             await recordOrderPaymentTransactions(order);
-            txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid'] } });
+            txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid', 'Held', 'Released'] } });
         }
         if (txs.length === 0) {
             return res.status(400).json({ success: false, error: 'No active transaction found for this order' });
         }
 
-        // Create refund logs and mark transactions refunded
-        const settings = await Settings.findOne() || { refundDeductionPolicy: 'full' };
-        const isFullRefund = settings.refundDeductionPolicy === 'full';
-
-        const refunds = [];
-        for (const tx of txs) {
-            let commissionRefunded = 0;
-            let sellerDeducted = tx.sellerAmount;
-
-            if (isFullRefund) {
-                commissionRefunded = tx.deductedCommission;
-            }
-
-            const refund = await Refund.create({
-                order: orderId,
-                seller: tx.seller,
-                buyer: tx.buyer,
-                refundAmount: isFullRefund ? tx.totalAmount : tx.sellerAmount,
-                commissionRefunded,
-                sellerDeductedAmount: sellerDeducted,
-                reason: reason || 'Customer requested refund',
-                status: 'Approved'
-            });
-
-            // Update original transaction status to Refunded
-            tx.status = 'Refunded';
-            await tx.save();
-
-            // Insert new refund entry in transaction log
-            await Transaction.create({
-                order: orderId,
-                seller: tx.seller,
-                buyer: tx.buyer,
-                totalAmount: -refund.refundAmount,
-                deductedCommission: -refund.commissionRefunded,
-                sellerAmount: -refund.sellerDeductedAmount,
-                commissionPercentage: tx.commissionPercentage,
-                status: 'Completed',
-                type: 'refund'
-            });
-
-            refunds.push(refund);
-        }
-
-        // Update order status to Cancelled / Refunded
-        order.status = 'cancelled';
-        order.paymentStatus = 'refunded';
-        await order.save();
-
-        try {
-            const { markPayoutsRefundedForOrder } = require('../utils/payoutSync');
-            await markPayoutsRefundedForOrder(orderId);
-        } catch (payoutErr) {
-            console.error('[payout] refund sync:', payoutErr.message);
-        }
-
-        if (order.paymentMethod === 'platform_wallet') {
+        // Call Stripe Refund API if paid via card_payment
+        if (order.paymentMethod === 'card_payment' && order.stripePaymentIntentId) {
             try {
-                const { refundEscrowForSeller } = require('../services/walletService');
-                for (const refund of refunds) {
-                    await refundEscrowForSeller(orderId, refund.seller, refund.refundAmount);
-                }
-            } catch (walletErr) {
-                console.error('[wallet] admin refund wallet sync:', walletErr.message);
+                const stripe = require('../services/stripeService');
+                await stripe.refunds.create({
+                    payment_intent: order.stripePaymentIntentId,
+                    reason: 'requested_by_customer'
+                });
+            } catch (stripeErr) {
+                console.error('[stripe-refund] Stripe Refund API call failed:', stripeErr.message);
+                return res.status(400).json({ success: false, error: `Stripe Refund failed: ${stripeErr.message}` });
             }
         }
 
-        const totalCommissionRefunded = refunds.reduce((sum, r) => sum + (r.commissionRefunded || 0), 0);
-        const totalRefundAmount = refunds.reduce((sum, r) => sum + (r.refundAmount || 0), 0);
-        await reverseOrderPaymentTransactions(order, totalCommissionRefunded, totalRefundAmount);
+        const { refundOrderTransactionally } = require('../utils/payoutSync');
+        const refunds = await refundOrderTransactionally(orderId, reason || 'Customer requested refund');
 
         // Email Automation: Notify Buyer of Refund
         try {
             const populatedOrder = await Order.findById(orderId).populate('buyer', 'email name');
             if (populatedOrder && populatedOrder.buyer && populatedOrder.buyer.email) {
-                const sendEmail = require('../utils/sendEmail');
                 await sendEmail({
                     email: populatedOrder.buyer.email,
                     subject: `Order Refunded - #${orderId.slice(-6)}`,
@@ -544,7 +491,6 @@ exports.updateTransactionStatus = async (req, res, next) => {
             // Send Email
             try {
                 if (transaction.seller && transaction.seller.email) {
-                    const sendEmail = require('../utils/sendEmail');
                     await sendEmail({
                         email: transaction.seller.email,
                         subject: 'Seller Payment Processed',

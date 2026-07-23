@@ -16,18 +16,22 @@ import {
 import toast from 'react-hot-toast';
 
 const STATUS_OPTIONS = [
-  { value: 'open', label: 'Open' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'replied', label: 'Replied' },
-  { value: 'closed', label: 'Closed' },
+  { value: 'open',             label: 'Open' },
+  { value: 'in_progress',      label: 'In Progress' },
+  { value: 'waiting_for_user', label: 'Waiting for User' },
+  { value: 'replied',          label: 'Replied' },
+  { value: 'resolved',         label: 'Resolved' },
+  { value: 'closed',           label: 'Closed' },
 ];
 
 function StatusBadge({ status }) {
   const styles = {
-    open: 'bg-amber-50 text-amber-700 border-amber-200',
-    in_progress: 'bg-blue-50 text-blue-700 border-blue-200',
-    replied: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-    closed: 'bg-slate-100 text-slate-600 border-slate-200',
+    open:             'bg-amber-50 text-amber-700 border-amber-200',
+    in_progress:      'bg-blue-50 text-blue-700 border-blue-200',
+    replied:          'bg-emerald-50 text-emerald-700 border-emerald-200',
+    waiting_for_user: 'bg-purple-50 text-purple-700 border-purple-200',
+    resolved:         'bg-teal-50 text-teal-700 border-teal-200',
+    closed:           'bg-slate-100 text-slate-600 border-slate-200',
   };
   const label = STATUS_OPTIONS.find((item) => item.value === status)?.label || status || 'Open';
   return (
@@ -49,6 +53,83 @@ function formatType(type) {
 function ticketIdsMatch(a, b) {
   if (!a || !b) return false;
   return String(a) === String(b);
+}
+
+// Builds a chronological conversation thread from the original message + all replies.
+// reply.sender defaults to 'admin' for backward compatibility with old documents.
+function buildThread(ticket) {
+  if (!ticket) return [];
+  const original = {
+    id:        'original',
+    sender:    'user',
+    name:      ticket.name || 'Requester',
+    roleLabel: 'Requester',
+    message:   ticket.message,
+    createdAt: ticket.createdAt,
+  };
+  const replies = (ticket.replies || []).map((reply, idx) => {
+    const isUser = reply.sender === 'user';
+    return {
+      id:        reply._id || `reply-${idx}`,
+      sender:    reply.sender || 'admin',
+      name:      reply.adminName || (isUser ? ticket.name : 'GearUp Support'),
+      roleLabel: isUser ? 'Requester' : 'GearUp Support',
+      message:   reply.message,
+      createdAt: reply.createdAt,
+    };
+  });
+  return [original, ...replies].sort(
+    (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+  );
+}
+
+function ConversationThread({ ticket }) {
+  const thread = buildThread(ticket);
+  return (
+    <div className="space-y-3 max-h-[380px] overflow-y-auto pr-0.5">
+      {thread.map((msg) => {
+        const isAdmin = msg.sender === 'admin';
+        return (
+          <div
+            key={msg.id}
+            className={`rounded-[12px] border p-3.5 ${
+              isAdmin
+                ? 'border-emerald-100 bg-emerald-50/60'
+                : 'border-[#E5E7EB] bg-[#F8FAFC]'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2 mb-2">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                    isAdmin ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600'
+                  }`}
+                >
+                  {(msg.name || 'U').charAt(0).toUpperCase()}
+                </div>
+                <span className="text-[12px] font-bold text-[#0F172A]">{msg.name}</span>
+                <span
+                  className={`text-[10px] font-bold uppercase tracking-wide ${
+                    isAdmin ? 'text-emerald-600' : 'text-slate-500'
+                  }`}
+                >
+                  {msg.roleLabel}
+                </span>
+              </div>
+              <span className="text-[10px] text-[#94A3B8] font-medium whitespace-nowrap">
+                {new Date(msg.createdAt).toLocaleString('en-GB', {
+                  day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+                })}
+              </span>
+            </div>
+            <p className="text-[13px] leading-relaxed text-[#334155] whitespace-pre-wrap pl-8">
+              {msg.message}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function AdminSupportManagement() {
@@ -194,13 +275,13 @@ export default function AdminSupportManagement() {
       });
       const data = await res.json();
       if (data.success) {
-        toast.success('Ticket closed');
+        toast.success('Request closed successfully');
         await refreshSelectedTicket(ticketId);
       } else {
-        toast.error(data.error || 'Failed to close ticket');
+        toast.error(data.error || 'Failed to close request');
       }
     } catch {
-      toast.error('Network error while closing ticket');
+      toast.error('Network error while closing request');
     } finally {
       setStatusUpdating(false);
     }
@@ -224,7 +305,7 @@ export default function AdminSupportManagement() {
     <div className="w-full">
       <AdminPageShell
         title="Support Requests"
-        description="Click any ticket row to view details and send a reply."
+        description="Select a request to view its details and respond."
         align="left"
       >
         <div className="grid grid-cols-1 xl:grid-cols-5 gap-6">
@@ -243,7 +324,7 @@ export default function AdminSupportManagement() {
                   <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC]">
                     <tr>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
-                        Ticket ID
+                        Request ID
                       </th>
                       <th className="px-5 py-4 text-[11px] font-semibold uppercase tracking-wider text-[#64748B]">
                         User
@@ -353,13 +434,13 @@ export default function AdminSupportManagement() {
                 <Eye size={28} className="mx-auto text-[#94A3B8] mb-4" />
                 <h3 className="text-[16px] font-bold text-[#0F172A] mb-2">Select a support request</h3>
                 <p className="text-[13px] text-[#64748B]">
-                  Click any ticket row in the table to view details and send a reply.
+                  Click any request row in the table to view details and send a reply.
                 </p>
               </div>
             ) : (
               <div className="rounded-[18px] border border-[#E5E7EB] bg-white shadow-sm overflow-hidden">
                 <div className="border-b border-[#E5E7EB] bg-[#F8FAFC] px-6 py-4">
-                  <h3 className="text-[16px] font-bold text-[#0F172A]">Ticket Information</h3>
+                  <h3 className="text-[16px] font-bold text-[#0F172A]">Request Details</h3>
                   <p className="text-[12px] text-[#64748B] mt-1">
                     {selectedTicket.ticketId ||
                       `SUP-${String(selectedTicket._id).slice(-6).toUpperCase()}`}
@@ -396,7 +477,7 @@ export default function AdminSupportManagement() {
                   <div>
                     <div className="flex items-center justify-between gap-3 mb-2">
                       <span className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">
-                        Status
+                        Request Status
                       </span>
                       <select
                         value={selectedTicket.status || 'open'}
@@ -417,32 +498,13 @@ export default function AdminSupportManagement() {
                   </div>
 
                   <div>
-                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] mb-2">
-                      Original Message
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] mb-3">
+                      Conversation
                     </div>
-                    <div className="rounded-[14px] border border-[#E5E7EB] bg-[#F8FAFC] p-4 text-[14px] leading-relaxed text-[#334155] whitespace-pre-wrap">
-                      {selectedTicket.message}
-                    </div>
+                    <ConversationThread ticket={selectedTicket} />
                   </div>
 
-                  {latestReply && (
-                    <div>
-                      <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] mb-2">
-                        Previous Admin Reply
-                      </div>
-                      <div className="rounded-[14px] border border-emerald-100 bg-emerald-50/60 p-4">
-                        <div className="text-[12px] font-semibold text-emerald-700 mb-2">
-                          {latestReply.adminName || 'GearUp Support Team'} ·{' '}
-                          {new Date(latestReply.createdAt).toLocaleString('en-GB')}
-                        </div>
-                        <p className="text-[14px] leading-relaxed text-[#334155] whitespace-pre-wrap">
-                          {latestReply.message}
-                        </p>
-                      </div>
-                    </div>
-                  )}
-
-                  {selectedTicket.status !== 'closed' ? (
+                  {!['resolved', 'closed'].includes(selectedTicket.status) ? (
                     <div>
                       <div className="text-[11px] font-bold uppercase tracking-wider text-[#64748B] mb-2">
                         Admin Reply
@@ -471,13 +533,13 @@ export default function AdminSupportManagement() {
                           className="inline-flex flex-1 items-center justify-center gap-2 rounded-[12px] border border-[#FECACA] px-4 py-3 text-[13px] font-bold text-[#DC2626] hover:bg-[#FEF2F2] disabled:opacity-60"
                         >
                           <XCircle size={16} />
-                          Close Ticket
+                          Close Request
                         </button>
                       </div>
                     </div>
                   ) : (
                     <div className="rounded-[14px] border border-slate-200 bg-slate-50 px-4 py-3 text-[13px] font-semibold text-slate-600">
-                      This ticket is closed.
+                      This request is closed.
                     </div>
                   )}
                 </div>

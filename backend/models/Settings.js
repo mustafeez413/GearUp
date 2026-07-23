@@ -11,6 +11,11 @@ const SettingsSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    disputeWindowDays: {
+        type: Number,
+        default: 3,
+        min: 1
+    },
     commissionChargedTo: {
         type: String,
         enum: ['manufacturer', 'wholesaler'],

@@ -7,7 +7,7 @@ const AdAnalytics = require('../models/AdAnalytics');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const { createNotification } = require('./notificationController');
-const { processAdCampaignPayment } = require('../services/walletService');
+
 const { computeCtr, computeAdRankScore } = require('../utils/adRanking');
 const {
   ensureDefaultPlans,
@@ -95,6 +95,8 @@ function serializeSponsoredAd(ad) {
 async function getActiveAdsFilter(extra = {}) {
   const now = new Date();
   return {
+    paymentStatus: 'paid',
+    approvalStatus: 'approved',
     status: 'active',
     startDate: { $lte: now },
     endDate: { $gte: now },
@@ -143,6 +145,27 @@ exports.getBillingHistory = async (req, res) => {
       .populate('advertisementId', 'plan status productId startDate endDate')
       .sort({ createdAt: -1 });
     res.json({ success: true, data: payments });
+  } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+};
+
+// @desc    Get single campaign by ID
+exports.getCampaignById = async (req, res) => {
+  try {
+    const ad = await Advertisement.findById(req.params.id)
+      .populate('manufacturerId', 'name email businessDetails')
+      .populate('productId', 'name category price images')
+      .populate('approvedBy', 'name email')
+      .populate('rejectedBy', 'name email');
+    if (!ad) return res.status(404).json({ success: false, error: 'Campaign not found' });
+    
+    // Check auth
+    if (String(ad.manufacturerId._id || ad.manufacturerId) !== req.user.id && req.user.role !== 'admin') {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+
+    res.json({ success: true, data: ad });
   } catch (err) {
     res.status(500).json({ success: false, error: err.message });
   }
@@ -237,8 +260,8 @@ exports.updateCampaign = async (req, res) => {
   }
 };
 
-// @desc    Pay for campaign via platform wallet
-exports.payCampaign = async (req, res) => {
+// @desc    Create Stripe Checkout Session for campaign
+exports.createCheckoutSession = async (req, res) => {
   try {
     await ensureDefaultPlans();
     const ad = await Advertisement.findById(req.params.id);
@@ -251,15 +274,12 @@ exports.payCampaign = async (req, res) => {
     }
 
     const planDoc = await AdPlan.findOne({ slug: ad.plan });
-    const product = await Product.findById(ad.productId).select('category');
+    const product = await Product.findById(ad.productId).select('category name');
     const pricing = await getPlanPricing(ad.plan, product?.category);
     const amount = pricing?.finalPrice ?? planDoc?.price ?? ad.budget;
     const originalPrice = pricing?.originalPrice ?? amount;
 
-    const paymentResult = await processAdCampaignPayment(req.user.id, amount, ad._id);
-
-    ad.status = 'pending_approval';
-    ad.amountPaid = amount;
+    // Update ad metadata before payment
     ad.budget = amount;
     ad.originalPrice = originalPrice;
     ad.discountPercent = pricing?.discountPercent ?? 0;
@@ -270,33 +290,41 @@ exports.payCampaign = async (req, res) => {
     }
     await ad.save();
 
-    await AdPayment.create({
-      advertisementId: ad._id,
-      manufacturerId: req.user.id,
-      amount,
-      plan: ad.plan,
-      paymentMethod: req.body.paymentMethod || 'platform_wallet',
-      status: 'completed',
-      ledgerReference: `AD-${ad._id.toString().slice(-8).toUpperCase()}`,
+    // Generate Stripe Checkout session
+    const stripe = require('../services/stripeService');
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'pkr',
+            product_data: {
+              name: `Advertisement: ${planDoc?.name || ad.plan}`,
+              description: `Campaign for ${product?.name || 'Product'}`
+            },
+            unit_amount: Math.round(amount * 100), // convert to cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${frontendUrl}/manufacturer/advertising/campaigns?payment_success=true&ad_id=${ad._id}`,
+      cancel_url: `${frontendUrl}/manufacturer/advertising/create?payment_cancelled=true`,
       metadata: {
-        originalPrice,
-        finalPrice: amount,
-        savings: Math.max(0, originalPrice - amount),
-        discountPercent: pricing?.discountPercent ?? 0,
-        discountName: pricing?.discountName || null
+        advertisementId: ad._id.toString(),
+        manufacturerId: req.user.id,
+        amount: amount.toString(),
+        plan: ad.plan
       }
     });
 
-    await createNotification(
-      req.user.id,
-      `Payment received for campaign. Awaiting admin approval.`,
-      'system',
-      '/manufacturer/advertising/campaigns'
-    );
+    ad.stripeCheckoutSessionId = session.id;
+    await ad.save();
 
     res.json({
       success: true,
-      data: { campaign: ad, payment: paymentResult }
+      url: session.url
     });
   } catch (err) {
     res.status(400).json({ success: false, error: err.message });
@@ -451,10 +479,10 @@ exports.getSponsoredProducts = async (req, res) => {
     const extraFilter = {};
     if (['manufacturer_overview', 'wholesaler_overview'].includes(placement)) {
       return res.json({ success: true, count: 0, data: [] });
-    } else if (placement === 'homepage_featured') {
-      extraFilter.campaignType = 'homepage_featured';
-    } else if (placement === 'featured') {
-      extraFilter.campaignType = { $in: ['featured_product', 'sponsored_product'] };
+    } else if (['homepage_featured', 'featured', 'featured_product'].includes(placement)) {
+      extraFilter.campaignType = { $in: ['homepage_featured', 'featured_product'] };
+    } else {
+      extraFilter.campaignType = 'sponsored_product';
     }
 
     const filter = await getActiveAdsFilter(extraFilter);
@@ -462,10 +490,6 @@ exports.getSponsoredProducts = async (req, res) => {
     let ads = await populateAdQuery(
       Advertisement.find(filter).sort({ rankScore: -1, createdAt: -1 }).limit(Number(limit) * 3)
     );
-
-    if (req.user && (req.user.role === 'manufacturer' || req.user.role === 'wholesaler')) {
-      ads = ads.filter((ad) => String(ad.manufacturerId?._id || ad.manufacturerId) !== String(req.user.id));
-    }
 
     if (category && category !== 'all') {
       ads = ads.filter((ad) => {
@@ -498,14 +522,10 @@ exports.getRecommendedSponsored = async (req, res) => {
     });
 
     const limit = Number(req.query.limit) || 5;
-    const filter = await getActiveAdsFilter();
+    const filter = await getActiveAdsFilter({ campaignType: 'sponsored_product' });
     let ads = await populateAdQuery(
       Advertisement.find(filter).sort({ rankScore: -1 }).limit(limit * 3)
     );
-
-    if (req.user && (req.user.role === 'manufacturer' || req.user.role === 'wholesaler')) {
-      ads = ads.filter((ad) => String(ad.manufacturerId?._id || ad.manufacturerId) !== String(req.user.id));
-    }
 
     ads = ads.slice(0, limit);
     res.json({ success: true, data: ads.map(serializeSponsoredAd) });
@@ -576,7 +596,7 @@ exports.getAdminOverview = async (req, res) => {
       metricsAgg
     ] = await Promise.all([
       Advertisement.countDocuments(),
-      Advertisement.countDocuments({ status: 'pending_approval' }),
+      Advertisement.countDocuments({ approvalStatus: 'pending_review' }),
       Advertisement.countDocuments({
         status: 'active',
         startDate: { $lte: now },
@@ -642,17 +662,31 @@ exports.approveCampaign = async (req, res) => {
   try {
     const ad = await Advertisement.findById(req.params.id);
     if (!ad) return res.status(404).json({ success: false, error: 'Campaign not found' });
-    if (ad.status !== 'pending_approval') {
-      return res.status(400).json({ success: false, error: 'Campaign is not pending approval' });
+    if (ad.paymentStatus !== 'paid') {
+      return res.status(400).json({ success: false, error: 'Campaign payment has not been completed' });
+    }
+    if (ad.approvalStatus === 'approved') {
+      return res.status(400).json({ success: false, error: 'Campaign is already approved' });
     }
 
-    ad.status = 'active';
-    if (!ad.startDate) ad.startDate = new Date();
+    ad.approvalStatus = 'approved';
+    ad.approvedBy = req.user.id;
+    ad.approvedAt = new Date();
+
+    const now = new Date();
+    if (ad.startDate && new Date(ad.startDate) > now) {
+        ad.status = 'scheduled';
+    } else {
+        ad.status = 'active';
+        if (!ad.startDate) ad.startDate = now;
+    }
+    
+    await ad.save();
     await refreshAdMetrics(ad);
 
     await createNotification(
       ad.manufacturerId,
-      'Your advertisement campaign has been approved and is now live.',
+      'Congratulations! Your advertisement has been approved and will run according to your selected campaign schedule.',
       'system',
       '/manufacturer/advertising/campaigns'
     );
@@ -668,13 +702,17 @@ exports.rejectCampaign = async (req, res) => {
   try {
     const ad = await Advertisement.findById(req.params.id);
     if (!ad) return res.status(404).json({ success: false, error: 'Campaign not found' });
+    
+    ad.approvalStatus = 'rejected';
     ad.status = 'rejected';
+    ad.rejectedBy = req.user.id;
+    ad.rejectedAt = new Date();
     ad.rejectionReason = req.body.reason || req.body.feedback || 'Does not meet platform guidelines';
     await ad.save();
 
     await createNotification(
       ad.manufacturerId,
-      `Your advertisement campaign was rejected: ${ad.rejectionReason}`,
+      `Your advertisement was rejected. Reason: ${ad.rejectionReason}`,
       'system',
       '/manufacturer/advertising/campaigns'
     );

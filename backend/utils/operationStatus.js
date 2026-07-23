@@ -85,7 +85,7 @@ function buildOperationsContext({ disputes = [], refunds = [], escrows = [] } = 
 async function loadOperationsContext() {
     const Dispute = require('../models/Dispute');
     const Refund = require('../models/Refund');
-    const Escrow = require('../models/Escrow');
+    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
 
     const [disputes, refunds, escrows] = await Promise.all([
         Dispute.find().select('order seller status refundAmount createdAt').lean(),
@@ -309,7 +309,7 @@ function computeEscrowMetrics(escrows = [], disputes = [], walletStats = null, r
 }
 
 async function reconcileEscrowsForRefundedOrders(orders, ctx) {
-    const Escrow = require('../models/Escrow');
+    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
     const refundedOrderIds = buildRefundedOrderIds(orders, ctx);
     if (refundedOrderIds.size === 0) return { updated: 0 };
 

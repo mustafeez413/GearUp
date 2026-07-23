@@ -69,7 +69,7 @@ const SupportCard = ({ className = "" }) => {
           <div className="flex items-center justify-between px-5 py-4">
             <div className="flex items-center gap-2.5">
               <FileText size={14} className="text-[#64748B]" strokeWidth={2} />
-              <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest">Ticket Status</span>
+              <span className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest">Request Status</span>
             </div>
             <span className="text-[11px] font-[800] text-[#0F172A]">Operational</span>
           </div>

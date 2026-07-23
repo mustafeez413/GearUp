@@ -1,8 +1,3 @@
-/**
- * Shared verification status logic for admin review queues and statistics.
- * Keeps pending counts and pending lists in sync.
- */
-
 const APPROVED_STATUSES = new Set(['approved', 'verified']);
 const REJECTED_STATUS = 'rejected';
 const PENDING_STATUS = 'pending';
@@ -21,10 +16,6 @@ function hasSubmittedVerificationApplication(user) {
     return Boolean(bd.businessLicense && bd.taxId);
 }
 
-/**
- * A user is awaiting admin review when status is pending, or they submitted
- * documents but status was not updated (legacy / failed secondary save).
- */
 function isAwaitingAdminReview(user) {
     if (!isNonAdminUser(user)) return false;
 

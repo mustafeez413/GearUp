@@ -141,13 +141,13 @@ const SearchableLocationDropdown = ({ value, onChange }) => {
                 <div className="absolute left-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl shadow-xl w-72 max-h-[340px] overflow-hidden flex flex-col animate-scale-up">
                     <div className="p-3 border-b border-slate-100">
                         <div className="relative">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                            <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                             <input
                                 type="text"
                                 placeholder="Search cities, towns..."
                                 value={search}
                                 onChange={(e) => setSearch(e.target.value)}
-                                className="w-full pl-9 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 text-xs font-body text-slate-900 font-bold placeholder-slate-400"
+                                className="pl-3 pr-9 w-full py-1.5 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500/10 focus:border-emerald-500 text-xs font-body text-slate-900 font-bold placeholder-slate-400"
                             />
                         </div>
                     </div>
@@ -504,7 +504,7 @@ const MarketplacePage = ({ isDashboard = true }) => {
             <div className="filter-bar-enterprise flex flex-wrap items-center gap-4">
                 {/* Search Field */}
                 <div className="relative flex-1 min-w-[240px]">
-                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={20} />
+                    <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={20} />
                     <input
                         type="text"
                         placeholder="Search premium products or suppliers..."

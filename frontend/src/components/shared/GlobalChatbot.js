@@ -10,7 +10,7 @@ const GlobalChatbot = () => {
     const [messages, setMessages] = useState([
         {
             id: 1,
-            text: "Hi! I'm your GearUp AI assistant. How can I help you with your business today?",
+            text: "Welcome to GearUp!\nI'm your virtual assistant.\nI can help you with:\n• Search wholesale products\n• Track orders\n• Payment information\n• Refunds\n• Seller payout information\n• Refund policy/procedure\n\nChoose one of the options above or type your question.",
             sender: 'bot',
             timestamp: new Date()
         }
@@ -147,10 +147,10 @@ const GlobalChatbot = () => {
                                         )}
                                     </div>
                                     <div className={`rounded-2xl p-4 shadow-sm ${message.sender === 'user'
-                                            ? 'bg-slate-900 text-white rounded-tr-none'
-                                            : message.isError
-                                                ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none'
-                                                : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
+                                        ? 'bg-slate-900 text-white rounded-tr-none'
+                                        : message.isError
+                                            ? 'bg-red-50 text-red-700 border border-red-100 rounded-tl-none'
+                                            : 'bg-white text-slate-800 border border-slate-100 rounded-tl-none'
                                         }`}>
                                         <p className="font-body text-sm whitespace-pre-line leading-relaxed">{message.text}</p>
                                         <p className={`font-body text-[10px] mt-2 font-medium ${message.sender === 'user' ? 'text-slate-400' : 'text-slate-400'}`}>

@@ -8,11 +8,10 @@ import {
   Receipt,
   Clock,
   Percent,
-  Wallet,
+  Banknote,
   User,
   Building2,
   Smartphone,
-  Banknote,
   Minus,
   Equal,
 } from 'lucide-react';
@@ -22,24 +21,24 @@ function PayoutStatusBadge({ status, size = 'default' }) {
   const normalized = status || 'Pending';
   const compact = size === 'compact';
 
-  if (normalized === 'Pending') {
+  if (normalized === 'Pending' || normalized === 'Holding' || normalized === 'Held') {
     return (
       <span className={`inline-flex items-center gap-1.5 rounded-full border bg-[rgba(245,158,11,0.12)] border-[rgba(245,158,11,0.25)] text-[#B45309] font-semibold uppercase tracking-wide ${
         compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
       }`}>
         <span className="w-1.5 h-1.5 rounded-full bg-[#F59E0B]" />
-        Pending
+        {normalized}
       </span>
     );
   }
 
-  if (normalized === 'Failed') {
+  if (normalized === 'Failed' || normalized === 'Refunded') {
     return (
       <span className={`inline-flex items-center gap-1.5 rounded-full border bg-[rgba(239,68,68,0.12)] border-[rgba(239,68,68,0.25)] text-[#DC2626] font-semibold uppercase tracking-wide ${
         compact ? 'px-2 py-0.5 text-[10px]' : 'px-2.5 py-1 text-[11px]'
       }`}>
         <span className="w-1.5 h-1.5 rounded-full bg-[#EF4444]" />
-        Failed
+        {normalized}
       </span>
     );
   }
@@ -175,7 +174,7 @@ function SellerPaymentDetailsModal({ payout, onClose }) {
                 )}
               </ModalSection>
 
-              <ModalSection title="Mobile Wallet Details" icon={Smartphone}>
+              <ModalSection title="Mobile Payment Details" icon={Smartphone}>
                 {walletConfigured ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <DetailField label="JazzCash" value={details.jazzCashNumber || '—'} mono />
@@ -183,7 +182,7 @@ function SellerPaymentDetailsModal({ payout, onClose }) {
                   </div>
                 ) : (
                   <p className="text-[14px] font-medium text-[#64748B] italic">
-                    No mobile wallet configured
+                    No mobile payment details configured
                   </p>
                 )}
               </ModalSection>
@@ -231,7 +230,7 @@ function SellerPaymentDetailsModal({ payout, onClose }) {
                         PKR {netPayable.toLocaleString()}
                       </p>
                     </div>
-                    <Wallet size={18} className="text-emerald-300/80 shrink-0" />
+                    <Banknote size={18} className="text-emerald-300/80 shrink-0" />
                   </div>
 
                   <p className="pt-1 text-[12px] leading-relaxed text-slate-400">
@@ -254,7 +253,7 @@ export default function AdminPaymentRecordsPanel({
   const [selectedPayout, setSelectedPayout] = useState(null);
 
   const totalPayouts = payoutsList.length;
-  const pendingPayouts = payoutsList.filter((t) => t.status === 'Pending').length;
+  const pendingPayouts = payoutsList.filter((t) => t.status === 'Pending' || t.status === 'Holding' || t.status === 'Held').length;
   const totalCommission = payoutsList.reduce((acc, t) => acc + (t.deductedCommission || 0), 0);
   const totalNetPayable = payoutsList.reduce((acc, t) => acc + (t.sellerAmount || t.amount || 0), 0);
 

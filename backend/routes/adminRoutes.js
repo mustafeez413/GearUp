@@ -39,12 +39,19 @@ const fs = require('fs');
 
 router.get('/proof/:filename', (req, res) => {
     const filename = req.params.filename;
-    // Basic sanitization
-    if (filename.includes('..') || filename.includes('/')) {
+    if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
         return res.status(400).json({ error: 'Invalid filename' });
     }
-    const filePath = path.join(__dirname, '../uploads', filename);
-    if (fs.existsSync(filePath)) {
+    const possiblePaths = [
+        path.join(process.cwd(), 'uploads', filename),
+        path.join(__dirname, '../uploads', filename),
+        path.join(__dirname, '../uploads/proofs', filename),
+        path.join(__dirname, '../uploads/gearup', filename),
+        path.join(__dirname, '../uploads/documents', filename),
+        path.join(__dirname, '../uploads/licenses', filename)
+    ];
+    const filePath = possiblePaths.find(p => fs.existsSync(p));
+    if (filePath) {
         res.sendFile(filePath);
     } else {
         res.status(404).json({ error: 'File not found' });

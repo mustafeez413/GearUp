@@ -3,10 +3,33 @@ import { getApiBaseUrl } from '@/lib/api';
 export function getUploadFilename(uploadPath) {
   if (!uploadPath) return null;
   const normalized = uploadPath.replace(/\\/g, '/');
-  return normalized.split('/').filter(Boolean).pop() || null;
+  const cleanPath = normalized.split('?')[0];
+  return cleanPath.split('/').filter(Boolean).pop() || null;
 }
 
 export async function fetchSecureAdminUploadBlobUrl(uploadPath) {
+  if (!uploadPath) {
+    throw new Error('No document file found.');
+  }
+
+  // Handle absolute HTTP/HTTPS URLs (e.g. Cloudinary uploads)
+  if (uploadPath.startsWith('http://') || uploadPath.startsWith('https://')) {
+    try {
+      const res = await fetch(uploadPath);
+      if (!res.ok) throw new Error('Remote document fetch failed');
+      const contentType = res.headers.get('content-type') || '';
+      const blob = await res.blob();
+      const typedBlob =
+        contentType && blob.type !== contentType
+          ? new Blob([await blob.arrayBuffer()], { type: contentType })
+          : blob;
+      return URL.createObjectURL(typedBlob);
+    } catch {
+      // Fallback: return direct URL if blob fetch is blocked by CORS
+      return uploadPath;
+    }
+  }
+
   const filename = getUploadFilename(uploadPath);
   if (!filename) {
     throw new Error('No document file found.');
@@ -44,18 +67,39 @@ export async function fetchSecureAdminUploadBlobUrl(uploadPath) {
 }
 
 export async function openSecureAdminUpload(uploadPath) {
-  const url = await fetchSecureAdminUploadBlobUrl(uploadPath);
-  window.open(url, '_blank', 'noopener,noreferrer');
-  window.setTimeout(() => URL.revokeObjectURL(url), 120000);
+  if (!uploadPath) return;
+  if (uploadPath.startsWith('http://') || uploadPath.startsWith('https://')) {
+    window.open(uploadPath, '_blank', 'noopener,noreferrer');
+    return;
+  }
+  const popup = window.open('', '_blank');
+  try {
+    const url = await fetchSecureAdminUploadBlobUrl(uploadPath);
+    if (popup) {
+      popup.location.href = url;
+    } else {
+      window.open(url, '_blank', 'noopener,noreferrer');
+    }
+  } catch (err) {
+    if (popup) popup.close();
+    alert(err.message || 'Could not open document.');
+  }
 }
 
 export async function downloadSecureAdminUpload(uploadPath, filename) {
-  const url = await fetchSecureAdminUploadBlobUrl(uploadPath);
-  const anchor = document.createElement('a');
-  anchor.href = url;
-  anchor.download = filename || getUploadFilename(uploadPath) || 'document';
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
+  if (!uploadPath) return;
+  try {
+    const url = await fetchSecureAdminUploadBlobUrl(uploadPath);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = filename || getUploadFilename(uploadPath) || 'document';
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    if (url.startsWith('blob:')) {
+      setTimeout(() => URL.revokeObjectURL(url), 60000);
+    }
+  } catch (err) {
+    alert(err.message || 'Could not download document.');
+  }
 }

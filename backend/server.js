@@ -1,5 +1,8 @@
-const express = require('express');
 const dotenv = require('dotenv');
+// Load env vars immediately before importing any other modules/routes
+dotenv.config();
+
+const express = require('express');
 const cors = require('cors');
 const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
@@ -13,10 +16,8 @@ const auditLogRoutes = require('./routes/auditLogRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 const transactionRoutes = require('./routes/transactionRoutes');
 const disputeRoutes = require('./routes/disputeRoutes');
-const walletRoutes = require('./routes/walletRoutes');
-
-// Load env vars
-dotenv.config();
+// NOTE: analyticsRoutes (routes/analyticsRoutes.js) is intentionally not mounted.
+// It exposes GET /api/analytics/market-share — enable when analytics feature is ready.
 
 // Configure custom DNS servers for local development to avoid querySrv ECONNREFUSED issues with Node.js DNS resolver
 if (process.env.NODE_ENV !== 'production') {
@@ -36,23 +37,21 @@ const startServer = async () => {
     try {
         await connectDB();
 
-        const { ensurePrototypeWalletsExist } = require('./services/walletService');
-        try {
-            const syncResult = await ensurePrototypeWalletsExist();
-            console.log(`[wallet] Wallets ensured (new only, balances preserved):`, syncResult);
-        } catch (walletSyncErr) {
-            console.error('[wallet] Failed to ensure wallets:', walletSyncErr.message);
-        }
+
         
         const app = express();
+        
+        // Enable CORS
+        app.use(cors());
+        
+        // Mount Stripe router before global json body parsing to preserve raw webhook bodies
+        const stripeRoutes = require('./routes/stripeRoutes');
+        app.use('/api/stripe', stripeRoutes);
         
         const path = require('path');
         
         // Body parser — allow product payloads with metadata (images upload separately)
         app.use(express.json({ limit: '2mb' }));
-        
-        // Enable CORS
-        app.use(cors());
         
         // Set static folder with proof protection
         app.use('/uploads', (req, res, next) => {
@@ -71,17 +70,20 @@ const startServer = async () => {
         app.use('/api/contact', contactRoutes);
         app.use('/api/chats', chatRoutes);
         app.use('/api/audit-logs', auditLogRoutes);
-        app.use('/api/notifications', require('./routes/notificationRoutes'));
+        app.use('/api/notifications', notificationRoutes);
         app.use('/api/banners', require('./routes/bannerRoutes'));
         app.use('/api/upload', require('./routes/uploadRoutes'));
         app.use('/api/transactions', transactionRoutes);
-        app.use('/api/wallet', walletRoutes);
+
         app.use('/api/disputes', disputeRoutes);
         app.use('/api/ads', require('./routes/ads'));
         app.use('/api/advertisements', require('./routes/advertisementRoutes'));
 
         const { scheduleAdCampaignExpiryJob } = require('./jobs/adCampaignExpiryJob');
         scheduleAdCampaignExpiryJob();
+        
+        const { scheduleEscrowAutoReleaseJob } = require('./jobs/escrowAutoReleaseJob');
+        scheduleEscrowAutoReleaseJob();
         
         // Health check route (Railway + uptime monitors)
         app.get('/api/health', (req, res) => {

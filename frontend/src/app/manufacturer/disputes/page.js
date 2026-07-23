@@ -83,7 +83,7 @@ export default function ManufacturerDisputesPage() {
                 title={tab === 'sales' ? 'Order issues on your sales' : 'Issues you reported as buyer'}
                 subtitle={
                     tab === 'sales'
-                        ? 'Buyers reported problems on orders where you are the seller. Respond or approve refunds when appropriate.'
+                        ? 'Buyers reported problems on orders where you are the seller. Submit your evidence and explanation — the GearUp Admin team will decide the outcome.'
                         : 'Track refund requests you opened on orders you purchased.'
                 }
                 disputes={activeList}

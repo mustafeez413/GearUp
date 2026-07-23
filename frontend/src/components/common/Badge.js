@@ -22,6 +22,9 @@ const Badge = ({
       cancelled: 'red',
       completed: 'emerald',
       rejected: 'red',
+      held: 'amber',
+      released: 'emerald',
+      refunded: 'red',
     };
     activeVariant = statusMap[status.toLowerCase()] || 'slate';
   }

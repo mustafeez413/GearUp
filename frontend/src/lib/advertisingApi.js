@@ -74,6 +74,11 @@ export async function fetchMyCampaigns() {
   return parseResponse(res);
 }
 
+export async function fetchCampaignById(id) {
+  const res = await fetch(`${getApiBaseUrl()}/api/advertisements/${id}`, { headers: getAuthHeaders() });
+  return parseResponse(res);
+}
+
 export async function fetchBillingHistory() {
   const res = await fetch(`${getApiBaseUrl()}/api/advertisements/billing/history`, { headers: getAuthHeaders() });
   return parseResponse(res);
@@ -88,11 +93,10 @@ export async function createCampaign(payload) {
   return parseResponse(res);
 }
 
-export async function payCampaign(id, paymentMethod = 'platform_wallet') {
-  const res = await fetch(`${getApiBaseUrl()}/api/advertisements/${id}/pay`, {
+export async function createCheckoutSession(id) {
+  const res = await fetch(`${getApiBaseUrl()}/api/advertisements/${id}/checkout`, {
     method: 'POST',
     headers: getAuthHeaders(),
-    body: JSON.stringify({ paymentMethod }),
   });
   return parseResponse(res);
 }

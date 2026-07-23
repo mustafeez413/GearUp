@@ -257,7 +257,7 @@ export default function VerificationManagementCenter() {
           <div className={toolbarBase}>
             <div className="flex flex-col xl:flex-row xl:items-stretch">
               <div className="relative flex items-center min-w-0 border-b xl:border-b-0 xl:border-r border-slate-100 xl:w-[58%] xl:shrink-0">
-                <Search size={17} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                <Search size={17} className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
                 <input
                   type="text"
                   value={search}

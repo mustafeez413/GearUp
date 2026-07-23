@@ -7,7 +7,6 @@ import {
     Banknote,
     Download,
     Clock,
-    Wallet,
     CreditCard,
     History,
     Search,
@@ -20,7 +19,8 @@ import {
     ArrowDownRight,
     Activity,
     Inbox,
-    ArrowLeft
+    ArrowLeft,
+    Lock
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import Skeleton from '@/components/common/Skeleton';
@@ -81,18 +81,15 @@ const ManufacturerTransactionsPage = () => {
     const router = useRouter();
 
     const [transactions, setTransactions] = useState([]);
-    const [payouts, setPayouts] = useState([]);
-    const [wallet, setWallet] = useState(null);
-    const [escrows, setEscrows] = useState([]);
-    const [ledger, setLedger] = useState([]);
-    const [sellerDisputes, setSellerDisputes] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
+    
+    // Withdraw states
     const [withdrawAmount, setWithdrawAmount] = useState('');
     const [showWithdrawForm, setShowWithdrawForm] = useState(false);
     const [isSubmitted, setIsSubmitted] = useState(false);
     const [withdrawAccountForm, setWithdrawAccountForm] = useState(INITIAL_WITHDRAW_ACCOUNT_FORM);
     const [withdrawFormErrors, setWithdrawFormErrors] = useState({});
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
     
     // Filters
     const [searchQuery, setSearchQuery] = useState('');
@@ -110,31 +107,16 @@ const ManufacturerTransactionsPage = () => {
             else setLoading(true);
             
             const token = localStorage.getItem('token');
-            const [res, walletRes, escrowRes, ledgerRes, disputesRes] = await Promise.all([
+            const [res, disputesRes] = await Promise.all([
                 fetch(`${getApiBaseUrl()}/api/orders`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${getApiBaseUrl()}/api/wallet/me`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${getApiBaseUrl()}/api/wallet/escrows`, { headers: { 'Authorization': `Bearer ${token}` } }),
-                fetch(`${getApiBaseUrl()}/api/wallet/ledger`, { headers: { 'Authorization': `Bearer ${token}` } }),
                 fetch(`${getApiBaseUrl()}/api/disputes/seller`, { headers: { 'Authorization': `Bearer ${token}` } })
             ]);
             const data = await res.json();
-            const walletData = await walletRes.json();
-            const escrowData = await escrowRes.json();
-            const ledgerData = await ledgerRes.json();
             const disputesData = await disputesRes.json();
-            if (walletData.success) setWallet(walletData.data);
-            if (disputesData.success) {
-                setSellerDisputes(disputesData.data || []);
-            } else {
-                console.error('[seller] disputes fetch:', disputesData.error);
-            }
-            if (escrowData.success) setEscrows(escrowData.data);
-            if (ledgerData.success) setLedger(ledgerData.data);
             if (data.success) {
                 const mappedTransactions = data.data.map(order => {
                     const sellerId = user?.id || user?._id;
                     const myStat = order.sellerStats?.find(s => s.seller?._id === sellerId || s.seller === sellerId);
-                    
                     return {
                         _id: order._id,
                         order: { _id: order._id },
@@ -143,7 +125,9 @@ const ManufacturerTransactionsPage = () => {
                         totalAmount: order.totalAmount,
                         paymentMethod: order.paymentMethod || 'Bank Transfer',
                         status: order.paymentStatus || 'Pending',
-                        timestamp: order.createdAt || new Date().toISOString()
+                        stripePaymentIntentId: order.stripePaymentIntentId || '',
+                        timestamp: order.createdAt || new Date().toISOString(),
+                        deliveredAt: order.deliveredAt || null,
                     };
                 });
                 setTransactions(mappedTransactions);
@@ -168,8 +152,8 @@ const ManufacturerTransactionsPage = () => {
 
     const getStatusBadge = (status) => {
         const lower = status.toLowerCase();
-        if (lower === 'completed' || lower === 'paid') return 'text-emerald-700 bg-emerald-100 border-emerald-200';
-        if (lower.includes('pending')) return 'text-amber-700 bg-amber-100 border-amber-200';
+        if (lower === 'completed' || lower === 'paid' || lower === 'released') return 'text-emerald-700 bg-emerald-100 border-emerald-200';
+        if (lower.includes('pending') || lower === 'held') return 'text-amber-700 bg-amber-100 border-amber-200';
         if (lower === 'failed') return 'text-rose-700 bg-rose-100 border-rose-200';
         if (lower === 'refunded') return 'text-slate-700 bg-slate-100 border-slate-200';
         return 'text-blue-700 bg-blue-100 border-blue-200';
@@ -177,7 +161,8 @@ const ManufacturerTransactionsPage = () => {
 
     // Calculate KPIs
     const totalAmount = transactions.reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
-    const successfulAmount = transactions.filter(t => t.status.toLowerCase() === 'completed' || t.status.toLowerCase() === 'paid').reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
+    const releasedAmount = transactions.filter(t => ['released', 'completed', 'paid'].includes(t.status.toLowerCase())).reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
+    const heldAmount = transactions.filter(t => t.status.toLowerCase() === 'held').reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
     const pendingAmount = transactions.filter(t => t.status.toLowerCase().includes('pending')).reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
     const failedAmount = transactions.filter(t => t.status.toLowerCase() === 'failed').reduce((sum, t) => sum + (t.receivedAmount || t.totalAmount || 0), 0);
 
@@ -305,7 +290,7 @@ const ManufacturerTransactionsPage = () => {
 
     return (
         <div className="space-y-8 w-full animate-in fade-in duration-500 pb-10">
-            {/* Dummy wallet overview */}
+            {/* Dummy wallet overview (Disconnected)
             {wallet && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     <div className="bg-white rounded-2xl border border-[#E7ECF3] p-5 shadow-[0_2px_15px_rgba(0,0,0,0.01)] sm:col-span-2">
@@ -328,7 +313,9 @@ const ManufacturerTransactionsPage = () => {
                     </div>
                 </div>
             )}
+            */}
 
+            {/* Escrow Holdings (Disconnected)
             {escrows.length > 0 && (
                 <div className="bg-white rounded-2xl border border-[#E7ECF3] overflow-hidden shadow-[0_2px_15px_rgba(0,0,0,0.01)]">
                     <div className="px-6 py-4 border-b border-[#E7ECF3]">
@@ -363,7 +350,9 @@ const ManufacturerTransactionsPage = () => {
                     </div>
                 </div>
             )}
+            */}
 
+            {/* Withdrawal form (Disconnected)
             <div className="bg-white rounded-2xl border border-slate-900/10 shadow-[0_2px_15px_rgba(0,0,0,0.01)] overflow-hidden">
                 {!showWithdrawForm ? (
                     <div className="px-6 md:px-8 py-6 flex flex-col sm:flex-row gap-3 items-end">
@@ -565,6 +554,7 @@ const ManufacturerTransactionsPage = () => {
                     </div>
                 )}
             </div>
+            */}
 
             {/* Header Section */}
             <div className="flex flex-col md:flex-row md:items-center justify-between mb-8 gap-4">
@@ -591,11 +581,12 @@ const ManufacturerTransactionsPage = () => {
             </div>
 
             {/* Top KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
                 {[
-                    { label: 'Total Payments', value: formatPKR(totalAmount), icon: Wallet, color: 'text-blue-600', bg: 'bg-blue-50', change: '+12%', trend: 'up' },
-                    { label: 'Successful Payments', value: formatPKR(successfulAmount), icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50', change: '+8%', trend: 'up' },
-                    { label: 'Pending Payments', value: formatPKR(pendingAmount), icon: Clock, color: 'text-amber-600', bg: 'bg-amber-50', change: '-2%', trend: 'down' }
+                    { label: 'Total Stripe Payments', value: formatPKR(totalAmount), icon: CreditCard, color: 'text-blue-600', bg: 'bg-blue-50' },
+                    { label: 'Released Earnings', value: formatPKR(releasedAmount), icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+                    { label: 'Held in Escrow', value: formatPKR(heldAmount), icon: Lock, color: 'text-amber-600', bg: 'bg-amber-50' },
+                    { label: 'Pending Payments', value: formatPKR(pendingAmount), icon: Clock, color: 'text-slate-500', bg: 'bg-slate-50' }
                 ].map((kpi, idx) => {
                     const Icon = kpi.icon;
                     return (
@@ -616,13 +607,13 @@ const ManufacturerTransactionsPage = () => {
                 <div className="p-6 border-b border-slate-100">
                     <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-6">
                         <div className="flex bg-slate-100 p-1 rounded-xl">
-                            {['All', 'platform_wallet', 'escrow_transfer'].map((method) => {
-                                const labels = { 'All': 'All Transactions', 'platform_wallet': 'Wallet Transactions', 'escrow_transfer': 'Bank Transfer' };
-                                const isActive = methodFilter === method || (methodFilter === 'All' && method === 'All') || (method === 'escrow_transfer' && methodFilter === 'Bank Transfer') || (method === 'platform_wallet' && methodFilter === 'Dummy Wallet');
+                            {['All', 'card_payment'].map((method) => {
+                                const labels = { 'All': 'All Transactions', 'card_payment': 'Card Payments (Stripe)' };
+                                const isActive = methodFilter === method || (methodFilter === 'All' && method === 'All') || (method === 'card_payment' && methodFilter === 'card_payment');
                                 return (
                                     <button
                                         key={method}
-                                        onClick={() => setMethodFilter(method === 'escrow_transfer' ? 'Bank Transfer' : method === 'platform_wallet' ? 'platform_wallet' : 'All')}
+                                        onClick={() => setMethodFilter(method === 'card_payment' ? 'card_payment' : 'All')}
                                         className={`px-4 py-2 rounded-lg font-bold text-sm transition-all ${
                                             isActive 
                                             ? 'bg-white text-slate-900 shadow-sm' 
@@ -639,13 +630,13 @@ const ManufacturerTransactionsPage = () => {
                     {/* Filters */}
                     <div className="filter-bar-enterprise flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
                         <div className="relative flex-1 min-w-[240px]">
-                            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
+                            <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search transactions..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="search-enterprise py-2.5 pl-10 h-auto"
+                                className="pl-4 pr-10 search-enterprise py-2.5 h-auto"
                             />
                         </div>
                         <div className="flex gap-2 flex-1 sm:flex-none">

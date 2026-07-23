@@ -1,5 +1,5 @@
 const User = require('../models/User');
-const { getOrCreateWallet } = require('../services/walletService');
+
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID || '373271456084-6flk0m1dvv2j8fipt5m787vt5jg8cv2c.apps.googleusercontent.com');
@@ -32,15 +32,16 @@ function validateUploadedBusinessDocument(file) {
 // Public
 exports.register = async (req, res, next) => {
     try {
-        console.log('[register] incoming request', {
-            email: req.body?.email,
-            city: req.body?.city,
-            province: req.body?.province,
-        });
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('[register] incoming request', {
+                email: req.body?.email,
+                city: req.body?.city,
+                province: req.body?.province,
+            });
+        }
 
         const validation = validateRegistrationPayload(req.body);
         if (!validation.isValid) {
-            console.log('[register] validation failed', validation.error);
             return res.status(400).json({ success: false, error: validation.error });
         }
 
@@ -99,7 +100,9 @@ exports.register = async (req, res, next) => {
         };
 
         const user = await User.create(userData);
-        console.log('[register] user created', { id: user._id, email: user.email });
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('[register] user created', { id: user._id, email: user.email });
+        }
 
         // Send OTP via email
         const message = `
@@ -253,18 +256,21 @@ exports.login = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Please provide an email and password' });
         }
 
-        console.log(`[AUTH] Attempting login for: ${email}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[AUTH] Attempting login for: ${email}`);
+        }
         // Check for user
         const user = await User.findOne({ email }).select('+password');
 
         if (!user) {
-            console.log(`[AUTH] User not found: ${email}`);
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
         }
 
         // Check if password matches
         const isMatch = await user.matchPassword(password);
-        console.log(`[AUTH] Password match result: ${isMatch}`);
+        if (process.env.NODE_ENV !== 'production') {
+            console.log(`[AUTH] Password match result: ${isMatch}`);
+        }
 
         if (!isMatch) {
             return res.status(401).json({ success: false, error: 'Invalid credentials' });
@@ -397,18 +403,33 @@ exports.getVerificationDocument = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'No verification document found.' });
         }
 
-        // If it's a Cloudinary URL, redirect to it
-        if (licensePath.startsWith('http')) {
+        // If it's a Cloudinary or remote URL
+        if (licensePath.startsWith('http://') || licensePath.startsWith('https://')) {
             return res.redirect(licensePath);
         }
+        if (licensePath.startsWith('//')) {
+            return res.redirect(`https:${licensePath}`);
+        }
 
-        const filename = path.basename(licensePath);
-        if (!filename || filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+        const cleanPath = licensePath.replace(/\\/g, '/').split('?')[0];
+        const filename = path.basename(cleanPath);
+        if (!filename || filename.includes('..')) {
             return res.status(400).json({ success: false, error: 'Invalid document reference.' });
         }
 
-        const filePath = path.resolve(__dirname, '..', 'uploads', filename);
-        if (!fs.existsSync(filePath)) {
+        const relativeClean = cleanPath.replace(/^\/+/, '');
+        const possiblePaths = [
+            path.resolve(process.cwd(), relativeClean),
+            path.resolve(__dirname, '..', relativeClean),
+            path.resolve(process.cwd(), 'uploads', filename),
+            path.resolve(__dirname, '..', 'uploads', filename),
+            path.resolve(__dirname, '..', 'uploads', 'proofs', filename),
+            path.resolve(__dirname, '..', 'uploads', 'gearup', filename),
+            path.resolve(__dirname, '..', 'uploads', 'documents', filename),
+            path.resolve(__dirname, '..', 'uploads', 'licenses', filename)
+        ];
+        const filePath = possiblePaths.find(p => fs.existsSync(p));
+        if (!filePath) {
             return res.status(404).json({ success: false, error: 'Verification document file not found.' });
         }
 
@@ -418,6 +439,12 @@ exports.getVerificationDocument = async (req, res, next) => {
             '.jpg': 'image/jpeg',
             '.jpeg': 'image/jpeg',
             '.png': 'image/png',
+            '.webp': 'image/webp',
+            '.txt': 'text/plain',
+            '.csv': 'text/csv',
+            '.doc': 'application/msword',
+            '.docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
         };
 
         if (mimeByExtension[extension]) {
@@ -488,7 +515,6 @@ exports.getCurrentUser = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'User not found' });
         }
 
-        console.log("Fetched user profile:", user);
 
         res.status(200).json({ success: true, data: serializeUserForClient(user) });
     } catch (error) {
@@ -798,11 +824,6 @@ exports.acceptPolicies = async (req, res, next) => {
 };
 
 const sendTokenResponse = async (user, statusCode, res) => {
-    try {
-        await getOrCreateWallet(user._id, user.role);
-    } catch (walletErr) {
-        console.error('[wallet] ensure on login:', walletErr.message);
-    }
 
     // Create token
     const token = jwt.sign({ id: user._id, role: user.role }, process.env.JWT_SECRET, {
@@ -833,10 +854,90 @@ const sendTokenResponse = async (user, statusCode, res) => {
                 avatar: serialized.avatar || null,
                 businessDetails: serialized.businessDetails || {},
                 paymentDetails: serialized.paymentDetails || {},
+                payoutDetails: serialized.payoutDetails || {},
                 acceptedPolicies: serialized.acceptedPolicies,
                 acceptedPoliciesAt: serialized.acceptedPoliciesAt,
                 isBlocked: !!serialized.isBlocked,
                 blockReason: serialized.blockReason || ''
             }
         });
+};
+
+// GET /api/auth/payout-settings
+exports.getPayoutSettings = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+        res.status(200).json({
+            success: true,
+            data: user.payoutDetails || {
+                isConfigured: false,
+                method: '',
+                bankName: '',
+                accountTitle: '',
+                iban: '',
+                accountNumber: '',
+                walletNumber: ''
+            }
+        });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
+// PUT /api/auth/payout-settings
+exports.updatePayoutSettings = async (req, res) => {
+    try {
+        const { method, bankName, accountTitle, iban, accountNumber, walletNumber } = req.body;
+        const user = await User.findById(req.user.id);
+        if (!user) {
+            return res.status(404).json({ success: false, error: 'User not found' });
+        }
+
+        if (!['manufacturer', 'wholesaler', 'admin'].includes(user.role)) {
+            return res.status(403).json({ success: false, error: 'Unauthorized to update payout settings' });
+        }
+
+        if (!method) {
+            return res.status(400).json({ success: false, error: 'Preferred payout method is required' });
+        }
+
+        if (method === 'Bank Transfer') {
+            if (!bankName || !accountTitle || !iban || !accountNumber) {
+                return res.status(400).json({ success: false, error: 'Bank Name, Account Title, IBAN, and Account Number are required' });
+            }
+        } else if (method === 'JazzCash' || method === 'EasyPaisa') {
+            if (!accountTitle || !walletNumber) {
+                return res.status(400).json({ success: false, error: 'Account Holder Name and Mobile Number are required' });
+            }
+            const plainNumber = walletNumber.replace(/[\s-]/g, '');
+            if (!/^(03\d{9})$|^(\+923\d{9})$/.test(plainNumber)) {
+                return res.status(400).json({ success: false, error: 'Please enter a valid mobile number starting with 03 or +923' });
+            }
+        } else {
+            return res.status(400).json({ success: false, error: 'Invalid payout method' });
+        }
+
+        user.payoutDetails = {
+            isConfigured: true,
+            method,
+            bankName: method === 'Bank Transfer' ? bankName : '',
+            accountTitle,
+            iban: method === 'Bank Transfer' ? iban : '',
+            accountNumber: method === 'Bank Transfer' ? accountNumber : '',
+            walletNumber: (method === 'JazzCash' || method === 'EasyPaisa') ? walletNumber : ''
+        };
+
+        await user.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Payout settings updated successfully',
+            data: user.payoutDetails
+        });
+    } catch (error) {
+        res.status(400).json({ success: false, error: error.message });
+    }
 };

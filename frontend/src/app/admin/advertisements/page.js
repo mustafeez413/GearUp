@@ -134,7 +134,7 @@ export default function AdminAdvertisementsPage() {
       </div>
 
       {pendingCampaigns.length > 0 && (
-        <Card title="Pending Approval" subtitle={`${pendingCampaigns.length} campaigns awaiting review`} className="mb-6">
+        <Card title="Pending Approval" subtitle={`${pendingCampaigns.length} paid campaigns awaiting review`} className="mb-6">
           <div className="space-y-3">
             {pendingCampaigns.map((c) => (
               <div key={c._id} className="flex flex-wrap items-center justify-between gap-3 p-4 rounded-xl border border-amber-100 bg-amber-50/50">
@@ -148,14 +148,14 @@ export default function AdminAdvertisementsPage() {
                   <CampaignActionButton
                     onClick={() => runAction(c._id, 'approve')}
                     disabled={actionId === c._id}
-                    label="Approve"
+                    label="Approve Advertisement"
                     icon={CheckCircle2}
                     variant="primary"
                     title="Approve Campaign"
                   />
                   <CampaignActionButton
                     onClick={() => setRejectId(c._id)}
-                    label="Reject"
+                    label="Reject Advertisement"
                     icon={XCircle}
                     variant="danger"
                     title="Reject Campaign"
@@ -187,79 +187,98 @@ export default function AdminAdvertisementsPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-[10px] font-black uppercase text-[#94A3B8] border-b">
-                <th className="pb-3 pr-3">ID</th>
-                <th className="pb-3 pr-3">Manufacturer</th>
-                <th className="pb-3 pr-3">Product</th>
-                <th className="pb-3 pr-3">Package</th>
-                <th className="pb-3 pr-3">Status</th>
+                <th className="pb-3 pr-3">ID & Date</th>
+                <th className="pb-3 pr-3">Product & Mfg</th>
+                <th className="pb-3 pr-3">Type & Pkg</th>
                 <th className="pb-3 pr-3">Dates</th>
-                <th className="pb-3 pr-3">Revenue</th>
+                <th className="pb-3 pr-3">Cost</th>
+                <th className="pb-3 pr-3">Payment</th>
+                <th className="pb-3 pr-3">Approval</th>
+                <th className="pb-3 pr-3">Status</th>
                 <th className="pb-3">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y">
               {campaigns.map((c) => (
                 <tr key={c._id} className="hover:bg-[#FAFBFC]">
-                  <td className="py-3 pr-3 font-mono text-xs">#{c._id.slice(-6).toUpperCase()}</td>
-                  <td className="py-3 pr-3 font-semibold">{c.manufacturerId?.name}</td>
-                  <td className="py-3 pr-3">{c.productId?.name}</td>
-                  <td className="py-3 pr-3 capitalize">{c.plan}</td>
-                  <td className="py-3 pr-3"><StatusBadge status={c.status} /></td>
-                  <td className="py-3 pr-3 text-xs text-[#64748B]">
+                  <td className="py-3 pr-3">
+                    <p className="font-mono text-xs">#{c._id.slice(-6).toUpperCase()}</p>
+                    <p className="text-[10px] text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</p>
+                  </td>
+                  <td className="py-3 pr-3">
+                    <p className="font-semibold text-xs">{c.productId?.name || 'Unknown'}</p>
+                    <p className="text-[10px] text-slate-500">{c.manufacturerId?.name || 'Unknown'}</p>
+                  </td>
+                  <td className="py-3 pr-3">
+                    <p className="capitalize text-xs font-semibold">{c.plan}</p>
+                    <p className="text-[10px] text-slate-500 capitalize">{c.campaignType?.replace('_', ' ')}</p>
+                  </td>
+                  <td className="py-3 pr-3 text-[10px] text-[#64748B]">
                     {formatAdDateRange(c.startDate, c.endDate)}
                   </td>
-                  <td className="py-3 pr-3 font-bold text-[#00A878]">{formatPKR(c.amountPaid || 0)}</td>
+                  <td className="py-3 pr-3 font-bold text-xs text-[#00A878]">{formatPKR(c.amountPaid || c.budget)}</td>
+                  <td className="py-3 pr-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${c.paymentStatus === 'paid' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : c.paymentStatus === 'failed' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                      {c.paymentStatus?.replace('_', ' ') || 'pending'}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3">
+                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase border ${c.approvalStatus === 'approved' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : c.approvalStatus === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-amber-50 text-amber-700 border-amber-200'}`}>
+                      {c.approvalStatus?.replace('_', ' ') || 'pending review'}
+                    </span>
+                  </td>
+                  <td className="py-3 pr-3"><StatusBadge status={c.status} /></td>
                   <td className="py-3">
-                    <div className="flex flex-wrap gap-2 min-w-[220px]">
-                      {c.status === 'pending_approval' && (
+                    <div className="flex flex-wrap gap-2 min-w-[200px]">
+                      <Link href={`/admin/advertisements/${c._id}`}>
                         <CampaignActionButton
-                          onClick={() => runAction(c._id, 'approve')}
-                          disabled={actionId === c._id}
-                          label="Approve"
-                          icon={CheckCircle2}
-                          variant="primary"
-                          title="Approve Campaign"
-                        />
-                      )}
-                      {c.status === 'active' && (
-                        <CampaignActionButton
-                          onClick={() => runAction(c._id, 'pause')}
-                          disabled={actionId === c._id}
-                          label="Pause"
-                          icon={Pause}
-                          variant="warning"
-                          title="Pause Campaign"
-                        />
-                      )}
-                      {c.status === 'paused' && (
-                        <CampaignActionButton
-                          onClick={() => runAction(c._id, 'resume')}
-                          disabled={actionId === c._id}
-                          label="Resume"
-                          icon={Play}
+                          label="View Details"
+                          icon={Eye}
                           variant="default"
-                          title="Resume Campaign"
+                          title="View Details"
                         />
+                      </Link>
+
+                      {c.paymentStatus === 'paid' && c.approvalStatus === 'pending_review' && (
+                        <>
+                          <CampaignActionButton
+                            onClick={() => runAction(c._id, 'approve')}
+                            disabled={actionId === c._id}
+                            label="Approve"
+                            icon={CheckCircle2}
+                            variant="primary"
+                          />
+                          <CampaignActionButton
+                            onClick={() => setRejectId(c._id)}
+                            disabled={actionId === c._id}
+                            label="Reject"
+                            icon={XCircle}
+                            variant="danger"
+                          />
+                        </>
                       )}
-                      {['active', 'paused', 'expired'].includes(c.status) && (
-                        <CampaignActionButton
-                          onClick={() => runAction(c._id, 'extend')}
-                          disabled={actionId === c._id}
-                          label="Extend"
-                          icon={CalendarPlus}
-                          variant="default"
-                          title="Extend Campaign"
-                        />
-                      )}
-                      {['active', 'paused'].includes(c.status) && (
+
+                      {c.approvalStatus === 'approved' && ['active', 'scheduled'].includes(c.status) && (
                         <CampaignActionButton
                           onClick={() => runAction(c._id, 'expire')}
                           disabled={actionId === c._id}
-                          label="End Campaign"
-                          icon={Clock}
-                          variant="navy"
-                          title="End Campaign"
+                          label="Deactivate"
+                          icon={XCircle}
+                          variant="warning"
                         />
+                      )}
+
+                      {c.approvalStatus === 'rejected' && (
+                        <CampaignActionButton
+                          onClick={() => alert(`Rejection Reason: ${c.rejectionReason}`)}
+                          label="View Reason"
+                          icon={Eye}
+                          variant="default"
+                        />
+                      )}
+
+                      {(c.paymentStatus === 'pending' || !c.paymentStatus) && (
+                        <span className="text-[10px] font-bold text-slate-400 mt-1 uppercase tracking-wider">Awaiting Payment</span>
                       )}
                     </div>
                   </td>

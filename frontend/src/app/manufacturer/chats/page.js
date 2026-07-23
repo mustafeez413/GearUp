@@ -140,13 +140,13 @@ export default function ManufacturerChatsPage() {
                     {/* Thread Search Box */}
                     <div className="p-4 border-b border-slate-100 bg-white">
                         <div className="relative group">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" size={16} />
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 group-focus-within:text-slate-900 transition-colors" size={16} />
                             <input 
                                 type="text"
                                 placeholder="Search negotiations..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full bg-slate-50 border border-slate-200 rounded-xl h-12 pl-11 pr-4 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 focus:bg-white transition-all shadow-sm"
+                                className="pl-4 pr-11 w-full bg-slate-50 border border-slate-200 rounded-xl h-12 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 focus:bg-white transition-all shadow-sm"
                             />
                         </div>
                     </div>

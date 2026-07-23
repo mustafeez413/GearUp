@@ -23,7 +23,7 @@ const Industries = () => {
             description: 'Connect with trusted sports equipment manufacturers across Pakistan. Find quality products from verified suppliers all in one place',
             stats: {
                 suppliers: { value: '450+', label: 'Active Mfrs' },
-                avgOrder: { value: 'PKR 2.5M', label: 'Avg Ticket' },
+                avgOrder: { value: 'PKR 2.5M', label: 'Avg Order Value' },
                 location: { value: 'Sialkot, PK', label: 'Primary Hub' }
             },
             products: ['Cricket Bats', 'Match Balls', 'Protective Gear', 'Team Kits', 'Training Aids'],
@@ -38,7 +38,7 @@ const Industries = () => {
             description: 'Source quality footballs directly from trusted manufacturers in Sialkot, Pakistan\'s sports manufacturing hub',
             stats: {
                 suppliers: { value: '380+', label: 'Active Mfrs' },
-                avgOrder: { value: 'PKR 1.8M', label: 'Avg Ticket' },
+                avgOrder: { value: 'PKR 1.8M', label: 'Avg Order Value' },
                 location: { value: 'Sialkot, PK', label: 'Primary Hub' }
             },
             products: ['Match Balls', 'Team Jerseys', 'Pro Boots', 'Training Gear', 'Goalie Kits'],

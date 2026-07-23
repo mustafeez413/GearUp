@@ -96,13 +96,13 @@ export default function EscrowLedgerPanel({ transactions }) {
 
       <div className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search ref, order, type…"
-            className={`${inputField} pl-10`}
+            className={`${inputField} `}
           />
         </div>
         <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className={`${selectField} sm:max-w-[160px]`}>

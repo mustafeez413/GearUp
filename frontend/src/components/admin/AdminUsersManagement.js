@@ -131,7 +131,7 @@ function AdminUsersInner({ roleFilter = 'all', pageTitle = 'Users', pageDescript
       return;
     }
 
-    if (!window.confirm('Are you sure you want to activate this user?')) return;
+    // Activate directly without window.confirm to avoid browser blocking issues
     await performBlockToggle(userId, true);
   };
 
@@ -224,7 +224,7 @@ function AdminUsersInner({ roleFilter = 'all', pageTitle = 'Users', pageDescript
         actions={
           <div className="relative w-full sm:w-96 group">
             <Search
-              className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8] transition-colors group-focus-within:text-[#00B894]"
+              className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8] transition-colors group-focus-within:text-[#00B894]"
               size={18}
             />
             <input
@@ -232,7 +232,7 @@ function AdminUsersInner({ roleFilter = 'all', pageTitle = 'Users', pageDescript
               placeholder="Search users..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-[12px] border border-[#E5E7EB] bg-white py-2.5 pl-12 pr-4 text-[14px] font-medium text-[#0F172A] shadow-sm outline-none transition-all placeholder:text-[#94A3B8] focus:border-[#00B894] focus:ring-2 focus:ring-[#00B894]/15"
+              className="w-full rounded-[12px] border border-[#E5E7EB] bg-white py-2.5 pl-4 pr-12 text-[14px] font-medium text-[#0F172A] shadow-sm outline-none transition-all placeholder:text-[#94A3B8] focus:border-[#00B894] focus:ring-2 focus:ring-[#00B894]/15"
             />
           </div>
         }

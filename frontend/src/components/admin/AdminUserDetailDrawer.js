@@ -393,6 +393,36 @@ export default function AdminUserDetailDrawer({
               )}
             </DrawerSection>
 
+            {user.role === 'manufacturer' && (
+              <DrawerSection title="Payout Information" icon={CreditCard}>
+                <div className="space-y-4">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <StatusBadge
+                      status={user.payoutDetails?.isConfigured ? 'APPROVED' : 'PENDING'}
+                      text={user.payoutDetails?.isConfigured ? 'Configured' : 'Not Configured'}
+                    />
+                  </div>
+                  {user.payoutDetails?.isConfigured ? (
+                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                      <DetailField label="Preferred Method" value={user.payoutDetails.method || '—'} />
+                      <DetailField label="Account Title" value={user.payoutDetails.accountTitle || '—'} mono />
+                      {user.payoutDetails.method === 'Bank Transfer' ? (
+                        <>
+                          <DetailField label="Bank Name" value={user.payoutDetails.bankName || '—'} mono />
+                          <DetailField label="IBAN / Account Number" value={user.payoutDetails.iban || '—'} mono />
+                          <DetailField label="Account Number" value={user.payoutDetails.accountNumber || '—'} mono />
+                        </>
+                      ) : (
+                        <DetailField label="Wallet Number (Mobile)" value={user.payoutDetails.walletNumber || '—'} mono />
+                      )}
+                    </div>
+                  ) : (
+                    <p className="text-[14px] font-medium italic text-[#64748B]">No payout settings configured by seller</p>
+                  )}
+                </div>
+              </DrawerSection>
+            )}
+
             <DrawerSection title="Marketplace Activity" icon={BarChart3}>
               <div className="grid grid-cols-2 gap-3">
                 <MetricTile label="Total Products" value={marketplace.totalProducts} />
@@ -426,7 +456,7 @@ export default function AdminUserDetailDrawer({
                 </button>
 
                 <Link
-                  href="/admin/products"
+                  href={`/admin/products?seller=${user._id}&sellerName=${encodeURIComponent(user.name || '')}`}
                   onClick={onClose}
                   className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0F172A] transition-colors hover:bg-[#F8FAFC]"
                 >
@@ -435,7 +465,7 @@ export default function AdminUserDetailDrawer({
                 </Link>
 
                 <Link
-                  href="/admin/escrow"
+                  href={`/admin/orders?seller=${user._id}&sellerName=${encodeURIComponent(user.name || '')}`}
                   onClick={onClose}
                   className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0F172A] transition-colors hover:bg-[#F8FAFC]"
                 >
@@ -444,7 +474,7 @@ export default function AdminUserDetailDrawer({
                 </Link>
 
                 <Link
-                  href="/admin/transactions"
+                  href={`/admin/transactions?seller=${user._id}&sellerName=${encodeURIComponent(user.name || '')}`}
                   onClick={onClose}
                   className="inline-flex items-center justify-center gap-2 rounded-[12px] border border-[#E5E7EB] bg-white px-4 py-2.5 text-[13px] font-semibold text-[#0F172A] transition-colors hover:bg-[#F8FAFC]"
                 >

@@ -39,7 +39,7 @@ export default function AdminTransactionsPanel({ transactions }) {
                 <td className="px-6 py-4 font-bold">{formatPKR(tx.totalAmount || tx.amount || 0)}</td>
                 <td className="px-6 py-4 text-emerald-700">{formatPKR(tx.deductedCommission || 0)}</td>
                 <td className="px-6 py-4">
-                  <Badge status={tx.status === 'Paid' || tx.status === 'completed' ? 'completed' : 'pending'}>
+                  <Badge status={tx.status}>
                     {tx.status || 'Unknown'}
                   </Badge>
                 </td>

@@ -10,12 +10,12 @@ const {
     calculateBuyerTotal
 } = require('../utils/commissionCalculator');
 const { createNotification } = require('./notificationController');
-const { sendEmail } = require('../services/emailService');
+const sendEmail = require('../utils/sendEmail');
 const { getPaymentProofTemplate } = require('../templates/paymentProofTemplate');
 const { getBuyerOrderApprovedTemplate, getManufacturerOrderApprovedTemplate } = require('../templates/orderApprovedTemplate');
 const { getShipmentTemplate } = require('../templates/shipmentTemplate');
 const User = require('../models/User');
-const { processWalletPayment, releaseEscrowForOrder, releaseEscrowForSeller, refundOrderEscrow } = require('../services/walletService');
+
 const { recordOrderPaymentTransactions } = require('../utils/orderTransactionSync');
 
 const TRACKING_LABELS = {
@@ -58,20 +58,7 @@ exports.createOrder = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Please add items to order' });
         }
 
-        const usePlatformWallet = paymentMethod === 'platform_wallet';
 
-        if (paymentMethod === 'escrow_transfer') {
-            if (!paymentProof) {
-                return res.status(400).json({ success: false, error: 'Payment proof is required for escrow transfers.' });
-            }
-            if (!transactionReference) {
-                return res.status(400).json({ success: false, error: 'Transaction ID is required.' });
-            }
-            const existingTid = await Order.findOne({ transactionReference });
-            if (existingTid) {
-                return res.status(400).json({ success: false, error: 'This Transaction ID has already been used.' });
-            }
-        }
 
         const commissionSettings = await loadCommissionSettings();
         const feePercent = resolveFeePercent(commissionSettings);
@@ -138,15 +125,9 @@ exports.createOrder = async (req, res, next) => {
         }
 
         // Set initial status based on payment method
-        let initialStatus = paymentProof ? 'pending_approval' : 'pending';
-        let initialPaymentStatus = paymentProof ? 'pending_approval' : 'pending';
+        let initialStatus = 'pending';
+        let initialPaymentStatus = 'pending';
         let isPaymentVerified = false;
-
-        if (usePlatformWallet) {
-            initialStatus = 'pending';
-            initialPaymentStatus = 'pending';
-            isPaymentVerified = false;
-        }
 
         const totalAmount = calculateBuyerTotal(subtotalAmount, platformCommissionTotal, commissionSettings);
 
@@ -162,86 +143,23 @@ exports.createOrder = async (req, res, next) => {
             platformCommissionTotal,
             commissionRate: commissionSettings.commissionEnabled ? commissionSettings.platformFeePercentage : 0,
             commissionChargedTo: commissionSettings.commissionEnabled ? commissionSettings.commissionChargedTo : 'none',
-            paymentProof,
             shippingAddress,
             notes,
-            paymentMethod: paymentMethod || 'escrow_transfer',
+            paymentMethod: paymentMethod || 'card_payment',
             transactionReference,
             paymentStatus: initialPaymentStatus,
             isPaymentVerified: isPaymentVerified,
             status: initialStatus
         });
 
-        if (usePlatformWallet) {
-            try {
-                await processWalletPayment(order, buyerId);
-            } catch (walletErr) {
-                await Order.findByIdAndDelete(order._id);
-                for (const item of orderItems) {
-                    const product = await Product.findById(item.product);
-                    if (product) {
-                        product.stock += item.quantity;
-                        await product.save();
-                    }
-                }
-                return res.status(400).json({ success: false, error: walletErr.message });
-            }
-
-            order.paymentStatus = 'verified';
-            order.isPaymentVerified = true;
-            order.status = 'processing';
-            for (const stat of order.sellerStats) {
-                stat.status = 'processing';
-            }
-            appendTrackingLog(order, 'verified', req.user, 'Wallet payment — funds held in escrow');
-            appendTrackingLog(order, 'processing', req.user, 'Order confirmed — sellers notified');
-            await order.save();
-
-            const Payout = require('../models/Payout');
-            for (const stat of order.sellerStats) {
-                const existingPayout = await Payout.findOne({ order: order._id, seller: stat.seller });
-                if (!existingPayout) {
-                    await Payout.create({
-                        order: order._id,
-                        seller: stat.seller,
-                        grossAmount: stat.subtotal,
-                        commission: stat.platformCommission,
-                        netAmount: stat.sellerReceivable,
-                        status: 'Holding',
-                        buyerTransactionId: order.transactionReference || null,
-                        notes: 'Escrow holding — automatic settlement on delivery'
-                    });
-                }
-            }
-
-            await recordOrderPaymentTransactions(order);
-        }
-
         for (const sellerId of sellerMap.keys()) {
-            const payMsg = usePlatformWallet
-                ? `New order #${order._id.toString().slice(-6)} — payment secured in escrow.`
-                : `New order #${order._id.toString().slice(-6)} received. Pending payment.`;
+            const payMsg = `New order #${order._id.toString().slice(-6)} received. Pending payment.`;
             await createNotification(
                 sellerId,
                 payMsg,
                 'order',
                 `/manufacturer/orders/${order._id}`
             );
-        }
-
-        if (!usePlatformWallet && paymentProof) {
-            try {
-                const adminUsers = await User.find({ role: 'admin' });
-                for (const admin of adminUsers) {
-                    sendEmail(
-                        admin.email,
-                        `New Payment Proof Uploaded - Order #${order._id.toString().slice(-6)}`,
-                        getPaymentProofTemplate(order._id.toString().slice(-6), req.user.name || 'Buyer', totalAmount)
-                    ).catch(err => console.error('[EMAIL] Failed to send admin notification:', err));
-                }
-            } catch (emailErr) {
-                console.error('[EMAIL] Failed to send admin notification:', emailErr);
-            }
         }
 
         res.status(201).json({ 
@@ -258,7 +176,6 @@ exports.createOrder = async (req, res, next) => {
 exports.getOrders = async (req, res, next) => {
     try {
         let query = {};
-        console.log(`[getOrders] DEBUG: Fetching orders. Logged-in User ID: ${req.user.id}, Role: ${req.user.role}`);
 
         if (req.user.role === 'wholesaler' || req.user.role === 'manufacturer') {
             // Fetch orders matching this seller or orders they bought
@@ -273,8 +190,6 @@ exports.getOrders = async (req, res, next) => {
             query = {};
         }
 
-        console.log(`[getOrders] DEBUG: Database query parameters:`, JSON.stringify(query));
-
         const orders = await Order.find(query)
             .populate('buyer', 'name email role businessDetails')
             .populate('items.product', 'name price pricePerBulkUnit bulkUnit images')
@@ -282,7 +197,6 @@ exports.getOrders = async (req, res, next) => {
             .populate('sellerStats.seller', 'name email businessDetails')
             .sort('-createdAt');
 
-        console.log(`[getOrders] DEBUG: Fetched raw orders count: ${orders.length}`);
 
         let formattedOrders = orders.map(order => {
             const obj = order.toObject({ virtuals: true });
@@ -312,53 +226,55 @@ exports.getOrders = async (req, res, next) => {
         });
 
         if (req.user.role === 'admin') {
-            const Payout = require('../models/Payout');
-            const Escrow = require('../models/Escrow');
-            const Dispute = require('../models/Dispute');
-            const {
-                loadOperationsContext,
-                reconcileOrderPaymentStatus,
-                reconcileAllOperations,
-                isPaymentReviewRecord,
-                computeUnifiedOperationsStats,
-                PAYMENT_STATUS,
-            } = require('../utils/operationStatus');
-            const ctx = await loadOperationsContext();
-            await reconcileAllOperations(formattedOrders, [], ctx);
+            try {
+                const Payout = require('../models/Payout');
+                const Dispute = require('../models/Dispute');
+                const {
+                    loadOperationsContext,
+                    reconcileOrderPaymentStatus,
+                    reconcileAllOperations,
+                    isPaymentReviewRecord,
+                    computeUnifiedOperationsStats,
+                    PAYMENT_STATUS,
+                } = require('../utils/operationStatus');
+                const ctx = await loadOperationsContext();
+                await reconcileAllOperations(formattedOrders, [], ctx);
 
-            formattedOrders = await Promise.all(
-                formattedOrders.map((o) => reconcileOrderPaymentStatus(o, ctx))
-            );
+                formattedOrders = await Promise.all(
+                    formattedOrders.map((o) => reconcileOrderPaymentStatus(o, ctx))
+                );
 
-            const reviewOrders = formattedOrders.filter((o) => isPaymentReviewRecord(o, ctx));
-            const [payouts, escrows, disputes] = await Promise.all([
-                Payout.find().lean(),
-                Escrow.find().lean(),
-                Dispute.find().select('status order').lean(),
-            ]);
-            const operationsSummary = computeUnifiedOperationsStats(formattedOrders, payouts, escrows, disputes, ctx);
+                const reviewOrders = formattedOrders.filter((o) => isPaymentReviewRecord(o, ctx));
+                const [payouts, disputes] = await Promise.all([
+                    Payout.find().lean().catch(() => []),
+                    Dispute.find().select('status order').lean().catch(() => []),
+                ]);
+                const escrows = [];
+                const operationsSummary = computeUnifiedOperationsStats(formattedOrders, payouts, escrows, disputes, ctx);
 
-            const paymentStats = {
-                pending: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.PENDING_VERIFICATION).length,
-                verified: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.VERIFIED).length,
-                rejected: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.REJECTED).length,
-                refunded: operationsSummary.refundedOrders,
-                reviews: reviewOrders.length,
-            };
+                const paymentStats = {
+                    pending: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.PENDING_VERIFICATION).length,
+                    verified: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.VERIFIED).length,
+                    rejected: reviewOrders.filter((o) => o.resolvedPaymentStatus === PAYMENT_STATUS.REJECTED).length,
+                    refunded: operationsSummary.refundedOrders,
+                    reviews: reviewOrders.length,
+                };
 
-            return res.status(200).json({
-                success: true,
-                count: formattedOrders.length,
-                paymentStats,
-                operationsSummary,
-                data: formattedOrders,
-            });
-        }
-
-        // Debug logging for task requirements
-        if (formattedOrders.length > 0) {
-            console.log(`[getOrders] DEBUG: Sample Populated Wholesaler:`, JSON.stringify(formattedOrders[0].wholesaler));
-            console.log(`[getOrders] DEBUG: Sample Populated Product:`, JSON.stringify(formattedOrders[0].orderItems?.[0]?.product));
+                return res.status(200).json({
+                    success: true,
+                    count: formattedOrders.length,
+                    paymentStats,
+                    operationsSummary,
+                    data: formattedOrders,
+                });
+            } catch (adminErr) {
+                console.error('[getOrders] Admin reconciliation error, returning raw formatted orders:', adminErr.message);
+                return res.status(200).json({
+                    success: true,
+                    count: formattedOrders.length,
+                    data: formattedOrders,
+                });
+            }
         }
 
         res.status(200).json({
@@ -458,24 +374,40 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        const isWalletOrder = order.paymentMethod === 'platform_wallet';
         const actingSellerId = req.user.role === 'manufacturer' ? req.user.id : null;
         const sellerStatBefore = actingSellerId
             ? order.sellerStats.find((s) => s.seller?.toString() === actingSellerId)
             : null;
         const previousSellerStatus = sellerStatBefore?.status;
 
-        // Only allow progression if payment proof exists (bank transfer). Wallet orders are pre-paid.
+        // Card orders are pre-paid.
         const restrictedStatuses = ['processing', 'shipped', 'delivered', 'Processing', 'Shipped', 'Completed'];
         if (restrictedStatuses.includes(normalizedStatus)) {
-            if (!isWalletOrder && !order.paymentProof) {
-                return res.status(400).json({ 
-                    success: false, 
-                    error: 'Cannot proceed to processing before payment proof/receipt is uploaded.' 
-                });
-            }
             order.isPaymentVerified = true;
             order.paymentStatus = 'verified';
+
+            // Ensure Payout records exist for verified orders
+            try {
+                const Payout = require('../models/Payout');
+                for (const stat of order.sellerStats) {
+                    const existingPayout = await Payout.findOne({ order: order._id, seller: stat.seller });
+                    if (!existingPayout) {
+                        await Payout.create({
+                            order: order._id,
+                            seller: stat.seller,
+                            grossAmount: stat.subtotal,
+                            commission: stat.platformCommission,
+                            netAmount: stat.sellerReceivable,
+                            status: 'Holding',
+                            buyerTransactionId: order.transactionReference || order.stripePaymentIntentId || null,
+                            notes: 'Escrow holding — awaiting automatic settlement'
+                        });
+                    }
+                }
+                await recordOrderPaymentTransactions(order);
+            } catch (payoutErr) {
+                console.error('[updateOrderStatus] Payout generation failed:', payoutErr.message);
+            }
         }
 
         if (req.user.role === 'admin') {
@@ -500,39 +432,11 @@ exports.updateOrderStatus = async (req, res, next) => {
         if (order.status === 'cancelled' || normalizedStatus === 'cancelled' || order.status === 'Cancelled') {
             const Transaction = require('../models/Transaction');
             await Transaction.updateMany({ order: order._id }, { status: 'Failed' });
-            if (isWalletOrder) {
-                try {
-                    await refundOrderEscrow(order._id);
-                } catch (refundErr) {
-                    console.error('[wallet] refund on cancel:', refundErr.message);
-                }
-            }
         }
 
         const buyerConfirmedDelivery =
             order.buyer?.toString() === req.user.id &&
             (normalizedStatus === 'delivered' || normalizedStatus === 'completed');
-
-        const sellerMarkedDelivered =
-            actingSellerId &&
-            normalizedStatus === 'delivered' &&
-            previousSellerStatus !== 'delivered';
-
-        if (sellerMarkedDelivered && isWalletOrder) {
-            try {
-                await releaseEscrowForSeller(order._id, actingSellerId);
-            } catch (releaseErr) {
-                console.error('[wallet] auto-release on seller deliver:', releaseErr.message);
-            }
-        }
-
-        if (buyerConfirmedDelivery && isWalletOrder) {
-            try {
-                await releaseEscrowForOrder(order._id, req.user.id);
-            } catch (releaseErr) {
-                console.error('[wallet] release on buyer confirm:', releaseErr.message);
-            }
-        }
 
         if (normalizedStatus) {
             const trackRole = req.user.role;
@@ -545,12 +449,17 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        if (order.status === 'completed' || order.status === 'delivered') {
+        if (order.status === 'completed' || buyerConfirmedDelivery) {
             try {
-                const { markPayoutsApprovedForOrder } = require('../utils/payoutSync');
-                await markPayoutsApprovedForOrder(order._id);
+                order.status = 'completed';
+                const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
+                await releaseOrderPaymentTransactionally(order._id);
             } catch (payoutErr) {
-                console.error('[payout] auto-approve on delivery:', payoutErr.message);
+                console.error('[payout] auto-release on buyer confirm:', payoutErr.message);
+            }
+        } else if (order.status === 'delivered' || normalizedStatus === 'delivered') {
+            if (!order.deliveredAt) {
+                order.deliveredAt = new Date();
             }
         }
 
@@ -561,20 +470,20 @@ exports.updateOrderStatus = async (req, res, next) => {
             const populatedOrder = await Order.findById(order._id).populate('buyer', 'email name');
             if (populatedOrder && populatedOrder.buyer && populatedOrder.buyer.email) {
                 if (normalizedStatus === 'shipped') {
-                    sendEmail(
-                        populatedOrder.buyer.email,
-                        `Order Shipped`,
-                        getShipmentTemplate(order._id.toString().slice(-6))
-                    ).catch(err => console.error('[EMAIL]', err));
+                    sendEmail({
+                        email: populatedOrder.buyer.email,
+                        subject: `Order Shipped`,
+                        html: getShipmentTemplate(order._id.toString().slice(-6))
+                    }).catch(err => console.error('[EMAIL]', err));
                 } else if (normalizedStatus === 'delivered' || normalizedStatus === 'completed') {
-                    sendEmail(
-                        populatedOrder.buyer.email,
-                        `Your Order #${order._id.toString().slice(-6)} has been Delivered!`,
-                        `<h3>Delivery Completed</h3>
+                    sendEmail({
+                        email: populatedOrder.buyer.email,
+                        subject: `Your Order #${order._id.toString().slice(-6)} has been Delivered!`,
+                        html: `<h3>Delivery Completed</h3>
                                <p>Hi ${populatedOrder.buyer.name},</p>
                                <p>Your order <b>#${order._id.toString().slice(-6)}</b> has been marked as delivered.</p>
                                <p>Thank you for using our platform.</p>`
-                    ).catch(err => console.error('[EMAIL]', err));
+                    }).catch(err => console.error('[EMAIL]', err));
                 }
             }
             
@@ -582,14 +491,14 @@ exports.updateOrderStatus = async (req, res, next) => {
             if (order.buyer?.toString() === req.user.id && (normalizedStatus === 'delivered' || normalizedStatus === 'completed')) {
                 const adminUsers = await User.find({ role: 'admin' });
                 for (const admin of adminUsers) {
-                    sendEmail(
-                        admin.email,
-                        `Delivery Confirmed - Order #${order._id.toString().slice(-6)}`,
-                        `<h3>Settlement Ready for Release</h3>
+                    sendEmail({
+                        email: admin.email,
+                        subject: `Delivery Confirmed - Order #${order._id.toString().slice(-6)}`,
+                        html: `<h3>Settlement Ready for Release</h3>
                                <p>The buyer has confirmed delivery for order <b>#${order._id.toString().slice(-6)}</b>.</p>
                                <p>The settlement is now ready to be released to the manufacturers.</p>
                                <p>Please log in to the Admin Dashboard > Settlements Tab to release the funds.</p>`
-                    ).catch(err => console.error('[EMAIL]', err));
+                    }).catch(err => console.error('[EMAIL]', err));
                 }
             }
         } catch (emailErr) {
@@ -613,14 +522,8 @@ exports.updatePaymentStatus = async (req, res, next) => {
             return res.status(404).json({ success: false, error: 'Order not found' });
         }
 
-        // If user is buyer and uploading proof
-        if (order.buyer?.toString() === req.user.id && paymentProof) {
-            order.paymentProof = paymentProof;
-            order.paymentStatus = 'pending_approval';
-            order.status = 'pending_approval';
-        } 
         // If user is admin/seller and verifying
-        else if (req.user.role === 'admin' || order.sellerStats.some(s => s.seller?.toString() === req.user.id)) {
+        if (req.user.role === 'admin' || order.sellerStats.some(s => s.seller?.toString() === req.user.id)) {
             // Normalize paymentStatus strings dynamically
             if (paymentStatus) {
                 const payMap = {
@@ -692,11 +595,11 @@ exports.updatePaymentStatus = async (req, res, next) => {
                 const populatedOrder = await Order.findById(order._id).populate('buyer', 'email name').populate('items.seller', 'email name');
                 
                 if (populatedOrder && populatedOrder.buyer && populatedOrder.buyer.email) {
-                    sendEmail(
-                        populatedOrder.buyer.email,
-                        `Order Approved Successfully`,
-                        getBuyerOrderApprovedTemplate(order._id.toString().slice(-6))
-                    ).catch(err => console.error('[EMAIL]', err));
+                    sendEmail({
+                        email: populatedOrder.buyer.email,
+                        subject: `Order Approved Successfully`,
+                        html: getBuyerOrderApprovedTemplate(order._id.toString().slice(-6))
+                    }).catch(err => console.error('[EMAIL]', err));
                 }
 
                 // Notify all manufacturers
@@ -706,43 +609,16 @@ exports.updatePaymentStatus = async (req, res, next) => {
                         const sellerEmail = item.seller?.email;
                         if (sellerEmail && !notifiedSellers.has(sellerEmail)) {
                             notifiedSellers.add(sellerEmail);
-                            sendEmail(
-                                sellerEmail,
-                                `New Approved Order`,
-                                getManufacturerOrderApprovedTemplate(order._id.toString().slice(-6), populatedOrder.buyer.name || 'Buyer')
-                            ).catch(err => console.error('[EMAIL]', err));
+                            sendEmail({
+                                email: sellerEmail,
+                                subject: `New Approved Order`,
+                                html: getManufacturerOrderApprovedTemplate(order._id.toString().slice(-6), populatedOrder.buyer.name || 'Buyer')
+                            }).catch(err => console.error('[EMAIL]', err));
                         }
                     }
                 }
             } catch (emailErr) {
                 console.error('[EMAIL] Failed to send payment verified notifications:', emailErr);
-            }
-        } else if (normalizedPaymentStatus === 'rejected' || normalizedPaymentStatus === 'pending') {
-            try {
-                const populatedOrder = await Order.findById(order._id).populate('buyer', 'email name');
-                if (populatedOrder && populatedOrder.buyer && populatedOrder.buyer.email) {
-                    if (normalizedPaymentStatus === 'rejected') {
-                        sendEmail({
-                            email: populatedOrder.buyer.email,
-                            subject: `Payment Rejected - Order #${order._id.toString().slice(-6)}`,
-                            html: `<h3>Payment Proof Rejected</h3>
-                                   <p>Hi ${populatedOrder.buyer.name},</p>
-                                   <p>Unfortunately, your payment proof for order <b>#${order._id.toString().slice(-6)}</b> has been rejected by our verification team.</p>
-                                   <p>Please contact support or re-upload a valid proof to proceed with your order.</p>`
-                        }).catch(err => console.error('[EMAIL]', err));
-                    } else if (normalizedPaymentStatus === 'pending') {
-                        await sendEmail({
-                            email: populatedOrder.buyer.email,
-                            subject: `Action Required: Re-upload Payment Proof - Order #${order._id.toString().slice(-6)}`,
-                            html: `<h3>Clearer Payment Proof Needed</h3>
-                                   <p>Hi ${populatedOrder.buyer.name},</p>
-                                   <p>Our team needs a clearer or more accurate payment proof for order <b>#${order._id.toString().slice(-6)}</b>.</p>
-                                   <p>Please log in to your dashboard and re-upload the receipt so we can verify your payment and process your order.</p>`
-                        });
-                    }
-                }
-            } catch (emailErr) {
-                console.error('[EMAIL] Failed to send rejected/reupload notifications:', emailErr);
             }
         }
 

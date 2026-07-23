@@ -1,4 +1,5 @@
 const ContactSubmission = require('../models/ContactSubmission');
+const User = require('../models/User');
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -136,3 +137,71 @@ exports.getMySupportRequestById = async (req, res) => {
 
 exports.formatTicketId = formatTicketId;
 exports.sanitizeText = sanitizeText;
+
+// @desc    User replies to their own support request
+// @route   POST /api/contact/mine/:id/reply
+// @access  Private
+exports.replyToSupportRequest = async (req, res) => {
+    try {
+        const message = sanitizeText(req.body.message || '', 5000);
+        if (!message) {
+            return res.status(400).json({ success: false, error: 'Reply message cannot be empty' });
+        }
+
+        const submission = await ContactSubmission.findById(req.params.id);
+        if (!submission) {
+            return res.status(404).json({ success: false, error: 'Support request not found' });
+        }
+        if (!isTicketOwner(submission, req.user)) {
+            return res.status(403).json({ success: false, error: 'Not authorized to reply to this request' });
+        }
+        if (['resolved', 'closed'].includes(submission.status)) {
+            return res.status(400).json({ success: false, error: 'This support request is no longer accepting replies' });
+        }
+
+        // Append user reply — reuse adminName field to store the sender display name
+        submission.replies.push({
+            message,
+            sender: 'user',
+            adminName: req.user.name || 'User',
+            createdAt: new Date(),
+        });
+
+        // If admin had set status to waiting_for_user, move it back to open
+        if (submission.status === 'waiting_for_user') {
+            submission.status = 'open';
+        }
+
+        submission.updatedAt = new Date();
+        await submission.save();
+
+        // Notify all admin users
+        try {
+            const { createNotification } = require('./notificationController');
+            const admins = await User.find({ role: 'admin' }).select('_id').lean();
+            const requestId = formatTicketId(submission._id);
+            for (const admin of admins) {
+                await createNotification(
+                    admin._id,
+                    `New reply from ${req.user.name} on support request ${requestId}.`,
+                    'system',
+                    '/admin/support'
+                );
+            }
+        } catch (notifyError) {
+            console.error('[User Reply] Admin notification failed:', notifyError.message);
+        }
+
+        res.json({
+            success: true,
+            message: 'Reply sent successfully',
+            data: {
+                ...submission.toObject(),
+                ticketId: formatTicketId(submission._id),
+            },
+        });
+    } catch (error) {
+        console.error('Error replying to support request:', error);
+        res.status(500).json({ success: false, error: 'Failed to send reply' });
+    }
+};

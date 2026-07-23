@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, googleAuth, getUser, getManufacturers, logout, submitVerification, getVerificationDocument, updateCapacity, forgotPassword, resetPassword, changePassword, updateProfile, getCurrentUser, verifyEmail, resendOTP, acceptPolicies } = require('../controllers/authController');
+const { register, login, googleAuth, getUser, getManufacturers, logout, submitVerification, getVerificationDocument, updateCapacity, forgotPassword, resetPassword, changePassword, updateProfile, getCurrentUser, verifyEmail, resendOTP, acceptPolicies, getPayoutSettings, updatePayoutSettings } = require('../controllers/authController');
 const { getSettings } = require('../controllers/adminController');
 const { protect, optionalAuth } = require('../middleware/authMiddleware');
 
@@ -34,5 +34,8 @@ router.put('/change-password', protect, changePassword);
 router.put('/accept-policies', protect, acceptPolicies);
 router.get('/settings', protect, getSettings);
 router.get('/manufacturers', optionalAuth, getManufacturers);
+
+router.get('/payout-settings', protect, getPayoutSettings);
+router.put('/payout-settings', protect, updatePayoutSettings);
 
 module.exports = router;

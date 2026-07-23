@@ -56,7 +56,6 @@ export default function WholesalerDashboard() {
 
     const [orders, setOrders] = useState([]);
     const [marketProducts, setMarketProducts] = useState([]);
-    const [walletBalance, setWalletBalance] = useState(null);
     const [loading, setLoading] = useState(true);
     const [openIssueCount, setOpenIssueCount] = useState(0);
     const [refundRecords, setRefundRecords] = useState([]);
@@ -68,23 +67,20 @@ export default function WholesalerDashboard() {
             const headers = { Authorization: `Bearer ${token}` };
             const base = getApiBaseUrl();
 
-            const [ordersRes, productsRes, walletRes, mineDisputesRes, sellerDisputesRes] = await Promise.all([
+            const [ordersRes, productsRes, mineDisputesRes, sellerDisputesRes] = await Promise.all([
                 fetch(`${base}/api/orders`, { headers }),
                 fetch(`${base}/api/products`, { headers }),
-                fetch(`${base}/api/wallet/me`, { headers }),
                 fetch(`${base}/api/disputes/mine`, { headers }),
                 fetch(`${base}/api/disputes/seller`, { headers }),
             ]);
 
             const ordersData = await ordersRes.json();
             const productsData = await productsRes.json();
-            const walletData = await walletRes.json();
             const disputesData = await mineDisputesRes.json();
             const sellerDisputesData = await sellerDisputesRes.json();
 
             if (ordersData.success) setOrders(ordersData.data || []);
             if (productsData.success) setMarketProducts(productsData.data || []);
-            if (walletData.success) setWalletBalance(walletData.data.balance ?? 0);
 
             const allDisputes = [
                 ...(disputesData.success ? disputesData.data || [] : []),
@@ -243,13 +239,13 @@ export default function WholesalerDashboard() {
             href: '/wholesaler/manufacturers'
         },
         {
-            label: 'Wallet Balance',
-            value: walletBalance != null ? formatPKR(walletBalance) : '…',
-            change: 'Platform wallet',
+            label: 'Card Payments',
+            value: formatPKR(purchaseOrders.filter(o => o.paymentMethod === 'card_payment').reduce((s, o) => s + (o.totalAmount || 0), 0)),
+            change: 'Stripe payments',
             trend: 'up',
             icon: Banknote,
             color: 'text-teal-600 bg-teal-50 border-teal-100/60',
-            href: '/manufacturer/transactions'
+            href: '/wholesaler/orders'
         },
         {
             label: 'Delivered',
@@ -278,7 +274,7 @@ export default function WholesalerDashboard() {
             color: 'text-rose-600 bg-rose-50 border-rose-100/60',
             href: '/wholesaler/orders'
         }
-    ], [stats, walletBalance, timeLabel, growthRates]);
+    ], [stats, purchaseOrders, timeLabel, growthRates]);
 
     const chartProducts = useMemo(() => {
         const fromOrders = [];
@@ -482,7 +478,7 @@ export default function WholesalerDashboard() {
                     purchaseOrdersCount: stats.orderCount,
                     salesOrdersCount: salesOrders.length,
                     activeOrders: stats.activeOrders,
-                    walletBalance: walletBalance,
+                    walletBalance: null,
                     deliveredOrders: stats.deliveredOrders,
                     receivedProducts: stats.receivedProducts,
                     todaysOrders: stats.todaysOrders,

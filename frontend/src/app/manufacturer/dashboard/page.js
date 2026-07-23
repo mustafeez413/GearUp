@@ -76,7 +76,6 @@ const ManufacturerDashboard = () => {
     const [marketProducts, setMarketProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [openIssueCount, setOpenIssueCount] = useState(0);
-    const [walletBalance, setWalletBalance] = useState(null);
     const [refundRecords, setRefundRecords] = useState([]);
 
     const fetchDashboardData = useCallback(async (silent = false) => {
@@ -114,15 +113,12 @@ const ManufacturerDashboard = () => {
             }
 
             const countOpen = (list) => (list || []).filter((d) => OPEN_DISPUTE_STATUSES.includes(d.status)).length;
-            const [sellerDisputesRes, myDisputesRes, walletRes] = await Promise.all([
+            const [sellerDisputesRes, myDisputesRes] = await Promise.all([
                 fetch(`${getApiBaseUrl()}/api/disputes/seller`, { headers }),
-                fetch(`${getApiBaseUrl()}/api/disputes/mine`, { headers }),
-                fetch(`${getApiBaseUrl()}/api/wallet/me`, { headers })
+                fetch(`${getApiBaseUrl()}/api/disputes/mine`, { headers })
             ]);
             const sellerDisputesData = await sellerDisputesRes.json();
             const myDisputesData = await myDisputesRes.json();
-            const walletData = await walletRes.json();
-            if (walletData.success) setWalletBalance(walletData.data?.balance ?? null);
 
             const allDisputes = [
                 ...(sellerDisputesData.success ? sellerDisputesData.data || [] : []),
@@ -790,7 +786,7 @@ const ManufacturerDashboard = () => {
                     salesOrdersCount: stats.filteredCount,
                     purchaseOrdersCount: stats.purchaseOrdersCount,
                     activeOrders: stats.activeOrders,
-                    walletBalance: walletBalance,
+                    walletBalance: null,
                     deliveredOrders: stats.deliveredOrders,
                     receivedProducts: stats.receivedProducts,
                     todaysOrders: stats.todaysOrders,

@@ -280,13 +280,13 @@ const ProductsPage = () => {
                 {activeTab === 'products' && (
                     <div className="flex items-center gap-3 pb-4 w-full lg:w-auto">
                         <div className="relative w-full lg:w-80">
-                            <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
+                            <Search className="absolute right-4 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={18} />
                             <input
                                 type="text"
                                 placeholder="Search by name, SKU..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="w-full h-[52px] pl-11 pr-4 bg-[#FFFFFF] border border-[#E2E8F0] rounded-[14px] shadow-[0_2px_8px_rgba(15,23,42,0.04)] focus:outline-none transition-all duration-200 font-sans text-[14px] font-[500] text-[#0F172A] placeholder-[#94A3B8] focus:border-[#00A878] focus:ring-[4px] focus:ring-[#00A878]/12"
+                                className="pl-4 pr-11 w-full h-[52px] bg-[#FFFFFF] border border-[#E2E8F0] rounded-[14px] shadow-[0_2px_8px_rgba(15,23,42,0.04)] focus:outline-none transition-all duration-200 font-sans text-[14px] font-[500] text-[#0F172A] placeholder-[#94A3B8] focus:border-[#00A878] focus:ring-[4px] focus:ring-[#00A878]/12"
                             />
                         </div>
                         <button className="flex items-center justify-center w-[52px] h-[52px] bg-[#FFFFFF] border border-[#E2E8F0] rounded-[14px] text-[#64748B] hover:bg-[#F8FAFC] hover:text-[#00A878] hover:border-[#00A878]/30 transition-all shadow-[0_2px_8px_rgba(15,23,42,0.04)] hover:shadow-md shrink-0">

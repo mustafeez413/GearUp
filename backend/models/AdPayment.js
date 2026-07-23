@@ -17,8 +17,8 @@ const AdPaymentSchema = new mongoose.Schema({
   plan: { type: String, required: true },
   paymentMethod: {
     type: String,
-    enum: ['platform_wallet', 'bank_transfer', 'card'],
-    default: 'platform_wallet'
+    enum: ['card', 'stripe'],
+    default: 'stripe'
   },
   status: {
     type: String,

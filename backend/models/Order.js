@@ -74,10 +74,10 @@ const OrderSchema = new mongoose.Schema({
         enum: ['manufacturer', 'wholesaler', 'none'],
         default: 'manufacturer'
     },
-    paymentProof: String,
+
     paymentStatus: {
         type: String,
-        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Rejected', 'Refunded', 'pending payment', 'pending approval', 'payment verified', 'rejected', 'refunded', 'pending', 'pending_approval', 'verified'],
+        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Rejected', 'Refunded', 'pending payment', 'pending approval', 'payment verified', 'rejected', 'refunded', 'pending', 'pending_approval', 'verified', 'Held', 'Released', 'held', 'released'],
         default: 'pending'
     },
     isPaymentVerified: {
@@ -92,13 +92,15 @@ const OrderSchema = new mongoose.Schema({
     transactionReference: String,
     paymentMethod: {
         type: String,
-        enum: ['bank_transfer', 'invoice_submission', 'card_payment', 'escrow_transfer', 'platform_wallet'],
-        default: 'bank_transfer'
+        enum: ['card_payment'],
+        default: 'card_payment'
     },
     cardDetails: {
         cardholderName: String,
         cardNumberHidden: String
     },
+    stripePaymentIntentId: String,
+    stripeTransactionId: String,
     shippingAddress: {
         address: String,
         city: String,
@@ -108,6 +110,7 @@ const OrderSchema = new mongoose.Schema({
         type: String
     },
     notes: String,
+    deliveredAt: Date,
     trackingLog: [
         {
             status: { type: String },

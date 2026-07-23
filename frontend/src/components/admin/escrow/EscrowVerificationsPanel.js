@@ -105,13 +105,13 @@ export default function EscrowVerificationsPanel({ escrowOrders, onViewProof, on
           <p className="text-sm text-[#64748B] mt-1">Review uploaded proofs and approve or reject payments.</p>
         </div>
         <div className="relative w-full lg:w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search orders, buyers, refs…"
-            className={`${inputField} pl-10`}
+            className={`${inputField} `}
           />
         </div>
       </div>
