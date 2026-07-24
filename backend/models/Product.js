@@ -31,6 +31,48 @@ const ProductSchema = new mongoose.Schema({
         type: Number,
         default: 0
     },
+    totalStock: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    reservedStock: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    availableStock: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    damagedStock: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    returnedStock: {
+        type: Number,
+        default: 0,
+        min: 0
+    },
+    lowStockThreshold: {
+        type: Number,
+        default: 10,
+        min: 0
+    },
+    lowStockAlertTriggered: {
+        type: Boolean,
+        default: false
+    },
+    isDeleted: {
+        type: Boolean,
+        default: false
+    },
+    deletedAt: {
+        type: Date,
+        default: null
+    },
     minimumOrderQuantity: {
         type: Number,
         default: 1,
@@ -82,6 +124,29 @@ const ProductSchema = new mongoose.Schema({
     toJSON: { virtuals: true },
     toObject: { virtuals: true },
     timestamps: true
+});
+
+ProductSchema.pre('save', function syncInventoryStock(next) {
+    if (this.isNew) {
+        if (this.totalStock === undefined || this.totalStock === null) {
+            this.totalStock = Math.max(0, this.stock || 0);
+        }
+    } else if (this.isModified('stock') && !this.isModified('totalStock')) {
+        this.totalStock = Math.max(0, this.stock || 0);
+    }
+
+    this.totalStock = Math.max(0, this.totalStock || 0);
+    this.reservedStock = Math.max(0, this.reservedStock || 0);
+    this.availableStock = Math.max(0, this.totalStock - this.reservedStock);
+    this.set('stock', this.availableStock, { merge: true });
+
+    // Reset low stock alert trigger if stock is replenished above threshold
+    if (this.availableStock > (this.lowStockThreshold || 10)) {
+        this.lowStockAlertTriggered = false;
+    }
+    if (typeof next === 'function') {
+        next();
+    }
 });
 
 module.exports = mongoose.model('Product', ProductSchema);

@@ -110,52 +110,21 @@ exports.createDispute = async (req, res) => {
 
         if (userId(order.buyer) !== buyerId) {
             return res.status(403).json({ success: false, error: 'Not authorized' });
-        }
-
-        // Verify order has been delivered/completed
-        if (order.status !== 'delivered' && order.status !== 'completed') {
-            return res.status(400).json({ success: false, error: 'Disputes can only be opened after the order has been delivered.' });
-        }
-
-        // Verify dispute window has not expired
-        const Settings = require('../models/Settings');
-        const settings = await Settings.findOne() || { disputeWindowDays: 3 };
-        const windowDays = settings.disputeWindowDays || 3;
-        
-        if (order.deliveredAt) {
-            const timeElapsedMs = Date.now() - new Date(order.deliveredAt).getTime();
-            const windowMs = windowDays * 24 * 60 * 60 * 1000;
-            if (timeElapsedMs > windowMs) {
-                return res.status(400).json({
-                    success: false,
-                    error: `The dispute window of ${windowDays} days for this order has expired. You can no longer open a dispute.`
-                });
-            }
-        }
-
-        // Restrict to only one dispute per order
-        const existingOrderDispute = await Dispute.findOne({ order: orderId });
-        if (existingOrderDispute) {
-            return res.status(400).json({
-                success: false,
-                error: 'You have already opened a dispute for this order. Only one dispute is allowed per order.'
-            });
-        }
-
-        if (!productId) {
+        }        if (!productId) {
             return res.status(400).json({ success: false, error: 'Please select a specific order item to dispute.' });
         }
 
         const disputedItem = (order.items || []).find(
-            (item) => userId(item.product) === String(productId)
+            (item) => userId(item.product) === String(productId) || String(item._id) === String(productId)
         );
+
         if (!disputedItem) {
             return res.status(400).json({ success: false, error: 'Selected product was not found on this order.' });
         }
 
         let targetSellerId = sellerId || userId(disputedItem.seller);
         if (!targetSellerId && order.sellerStats?.length === 1) {
-            targetSellerId = order.sellerStats[0].seller;
+            targetSellerId = userId(order.sellerStats[0].seller);
         }
         if (!targetSellerId) {
             return res.status(400).json({
@@ -168,9 +137,46 @@ exports.createDispute = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Seller does not match the selected order item.' });
         }
 
-        const sellerStat = order.sellerStats.find((s) => userId(s.seller) === targetSellerId.toString());
+        const { getSellerOrderStatus, isSellerStatusDisputable } = require('../utils/orderLifecycleUtils');
+        const sellerStatus = getSellerOrderStatus(order, targetSellerId);
+
+        // Verify seller's sub-order has been delivered or completed
+        if (!isSellerStatusDisputable(sellerStatus)) {
+            return res.status(400).json({
+                success: false,
+                error: 'Disputes can only be opened after the corresponding seller order has been delivered or completed.'
+            });
+        }
+
+        // Verify dispute window has not expired for this seller sub-order
+        const Settings = require('../models/Settings');
+        const settings = await Settings.findOne() || { disputeWindowDays: 3 };
+        const windowDays = settings.disputeWindowDays || 3;
+        
+        const sellerStat = (order.sellerStats || []).find(s => userId(s.seller) === String(targetSellerId));
         if (!sellerStat) {
             return res.status(400).json({ success: false, error: 'Seller not found on this order.' });
+        }
+
+        const deliveryTimestamp = sellerStat?.deliveredAt || order.deliveredAt;
+        if (deliveryTimestamp) {
+            const timeElapsedMs = Date.now() - new Date(deliveryTimestamp).getTime();
+            const windowMs = windowDays * 24 * 60 * 60 * 1000;
+            if (timeElapsedMs > windowMs) {
+                return res.status(400).json({
+                    success: false,
+                    error: `The dispute window of ${windowDays} days for this item has expired. You can no longer open a dispute.`
+                });
+            }
+        }
+
+        // Restrict to only one dispute per product item
+        const existingItemDispute = await Dispute.findOne({ order: orderId, product: productId });
+        if (existingItemDispute) {
+            return res.status(400).json({
+                success: false,
+                error: 'You have already opened a dispute for this item.'
+            });
         }
 
         const existingDispute = await Dispute.findOne({
@@ -445,6 +451,14 @@ exports.sellerRefund = async (req, res) => {
             await refundOrderTransactionally(order._id, message?.trim() || 'Seller approved refund to buyer.');
         }
 
+        if (req.body.returnReceived && dispute.product) {
+            const { handleReturnedStock } = require('../utils/inventoryManager');
+            const item = (order.items || []).find(i => userId(i.product) === userId(dispute.product));
+            const qty = req.body.returnedQuantity || item?.quantity || 1;
+            const passed = req.body.passedInspection !== false;
+            await handleReturnedStock(dispute.product, qty, order._id, req.user.id, passed);
+        }
+
         if (message?.trim()) {
             dispute.sellerResponse = { message: message.trim(), respondedAt: new Date() };
         }
@@ -469,7 +483,7 @@ exports.sellerRefund = async (req, res) => {
         await notifyAdmins(`Seller refunded dispute #${shortId}.`, '/admin/disputes', userId(req.user));
 
         const populated = await populateDispute(Dispute.findById(dispute._id));
-        res.status(200).json({ success: true, data: populated, refund: refundResult });
+        res.status(200).json({ success: true, data: populated });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }
@@ -646,6 +660,14 @@ exports.adminRefundDispute = async (req, res) => {
 
             const { refundOrderTransactionally } = require('../utils/payoutSync');
             await refundOrderTransactionally(order._id, resolution || 'Admin approved refund.');
+        }
+
+        if (req.body.returnReceived && dispute.product) {
+            const { handleReturnedStock } = require('../utils/inventoryManager');
+            const item = (order?.items || []).find(i => userId(i.product) === userId(dispute.product));
+            const qty = req.body.returnedQuantity || item?.quantity || 1;
+            const passed = req.body.passedInspection !== false;
+            await handleReturnedStock(dispute.product, qty, order._id, req.user.id, passed);
         }
 
         dispute.status = 'refunded';

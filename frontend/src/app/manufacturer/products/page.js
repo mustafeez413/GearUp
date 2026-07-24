@@ -69,7 +69,9 @@ const ProductsPage = () => {
                     name: p.name,
                     image: p.images?.[0] || null,
                     price: p.pricePerBulkUnit || p.price || 0,
-                    stock: p.stock || 0,
+                    stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0),
+                    totalStock: p.totalStock !== undefined ? p.totalStock : (p.stock || 0),
+                    reservedStock: p.reservedStock || 0,
                     moq: p.minimumOrderQuantity || 1,
                     bulkUnit: p.bulkUnit || 'Dozen',
                     packSize: normalizeLoadedPackSize(p.bulkUnit || 'Dozen', p.packSize) || 12,
@@ -147,8 +149,8 @@ const ProductsPage = () => {
                 setSuccessToast("Product deleted successfully");
                 setTimeout(() => setSuccessToast(null), 3000);
             } else {
-                console.error("API Deletion failed:", data.error || "Unknown error");
-                throw new Error(data.error || "Failed to delete product");
+                console.error("API Deletion failed:", data.message || data.error || "Unknown error");
+                throw new Error(data.message || data.error || "Failed to delete product");
             }
         } catch (err) {
             console.error('Error deleting product:', err);

@@ -54,6 +54,19 @@ const VerifyBusiness = () => {
         const state = getVerificationDisplayState(user);
         if (state === 'pending' || state === 'approved') {
             router.replace('/verification-status');
+            return;
+        }
+
+        if (user.businessDetails) {
+            const bd = user.businessDetails;
+            setFormData(prev => ({
+                ...prev,
+                taxId: prev.taxId || bd.taxId || '',
+                city: prev.city || bd.city || '',
+                address: prev.address || bd.address || bd.businessAddress || '',
+                phone: prev.phone || bd.phone || bd.businessPhone || '',
+                website: prev.website || bd.website || ''
+            }));
         }
     }, [authLoading, user, router]);
 
@@ -129,12 +142,14 @@ const VerifyBusiness = () => {
                 setSubmitting(false);
                 return;
             }
+            const docTypeLabel = user?.role === 'wholesaler' ? 'Business Registration Certificate' : 'Business License';
             const formDataToSend = new FormData();
             formDataToSend.append('taxId', formData.taxId);
             formDataToSend.append('city', formData.city);
             formDataToSend.append('address', formData.address);
             formDataToSend.append('phone', formData.phone.replace(/[\s-]/g, ''));
             formDataToSend.append('website', formData.website);
+            formDataToSend.append('documentType', docTypeLabel);
             formDataToSend.append('businessLicense', formData.businessLicense);
 
             const response = await fetch(`${getApiBaseUrl()}/api/auth/verify-business`, {
@@ -276,8 +291,10 @@ const VerifyBusiness = () => {
 
                     <form onSubmit={handleSubmit} className="space-y-6">
                         <div>
-                            <label className="block font-body font-medium text-slate-900 mb-2">
-                                Business License / Registration Certificate
+                            <label className="block font-body font-bold text-slate-900 mb-2">
+                                {user?.role === 'wholesaler' 
+                                    ? 'Business Registration Certificate OR Trade License (PDF) *' 
+                                    : 'Business License (PDF) *'}
                             </label>
                             <div className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
                                 errors.businessLicense

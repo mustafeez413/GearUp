@@ -125,6 +125,7 @@ const Sidebar = ({
     if (user?.role === 'wholesaler') {
       return [
         { label: 'Overview', path: '/wholesaler/dashboard', icon: LayoutDashboard },
+        { label: 'Verification', path: '/verification-status', icon: CheckCircle },
         { label: 'Inventory', path: '/manufacturer/products', icon: Package },
         { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: pendingSalesOrders },
         { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: pendingPurchaseOrders },
@@ -140,6 +141,7 @@ const Sidebar = ({
 
     const manufacturerItems = [
       { label: 'Overview', path: '/manufacturer/dashboard', icon: LayoutDashboard },
+      { label: 'Verification', path: '/verification-status', icon: CheckCircle },
       { label: 'Inventory', path: '/manufacturer/products', icon: Package },
       { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: pendingSalesOrders },
       { label: 'Purchase Orders', path: '/wholesaler/orders', icon: ShoppingBag, hasNotification: pendingPurchaseOrders },

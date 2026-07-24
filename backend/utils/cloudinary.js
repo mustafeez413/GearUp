@@ -91,10 +91,41 @@ const deleteFromUrl = async (url) => {
   }
 };
 
+/**
+ * Generates an authenticated download URL for Cloudinary assets (especially PDFs)
+ * to avoid 401 Unauthorized errors on Cloudinary delivery.
+ * @param {string} url - Full Cloudinary URL or local path
+ * @returns {string} Signed authenticated URL or original URL
+ */
+const getSecureDocumentUrl = (url) => {
+  if (!url || typeof url !== 'string') return url;
+  if (!url.includes('res.cloudinary.com')) return url;
+
+  try {
+    const publicId = getPublicIdFromUrl(url);
+    if (!publicId) return url;
+
+    const resourceType = getResourceTypeFromUrl(url);
+    const cleanUrl = url.split('?')[0];
+    const ext = cleanUrl.includes('.') ? cleanUrl.split('.').pop() : 'pdf';
+
+    const authUrl = cloudinary.utils.private_download_url(publicId, ext, {
+      resource_type: resourceType,
+      type: 'upload'
+    });
+
+    return authUrl || url;
+  } catch (err) {
+    console.error('[CLOUDINARY] Failed to generate secure document URL:', err.message);
+    return url;
+  }
+};
+
 module.exports = {
   cloudinary,
   uploadToCloudinary,
   getPublicIdFromUrl,
   getResourceTypeFromUrl,
+  getSecureDocumentUrl,
   deleteFromUrl
 };

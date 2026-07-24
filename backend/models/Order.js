@@ -86,7 +86,7 @@ const OrderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Order Confirmed', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'pending payment', 'pending approval', 'payment verified', 'order confirmed', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled'],
+        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Order Confirmed', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'Partially Completed', 'pending payment', 'pending approval', 'payment verified', 'order confirmed', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled', 'partially_completed'],
         default: 'pending'
     },
     transactionReference: String,

@@ -41,6 +41,9 @@ exports.getProducts = async (req, res, next) => {
             query.category = category;
         }
 
+        // Hide soft-deleted products from catalog
+        query.isDeleted = { $ne: true };
+
         // Hide drafts from general public / marketplace view
         if (req.query.scope !== 'inventory') {
             query.status = { $ne: 'draft' };
@@ -206,21 +209,18 @@ exports.updateProduct = async (req, res, next) => {
             }
         }
 
-        const originalStock = product.stock;
+        const newTotal = updatePayload.totalStock !== undefined ? updatePayload.totalStock : updatePayload.stock;
+        if (newTotal !== undefined) {
+            const { adjustStock } = require('../utils/inventoryManager');
+            await adjustStock(product._id, newTotal, req.user.id, 'Manual stock update');
+            delete updatePayload.totalStock;
+            delete updatePayload.stock;
+        }
 
         product = await Product.findByIdAndUpdate(req.params.id, updatePayload, {
             new: true,
             runValidators: true
         });
-
-        // Notification for low stock
-        if (req.body.stock !== undefined && isLowStockAlert(product) && !isLowStockAlert({ stock: originalStock, status: product.status })) {
-            await createNotification(
-                product.manufacturer.toString(),
-                `Low stock alert: ${product.name} has only ${product.stock} ${product.bulkUnit}s left in stock.`,
-                'alert'
-            );
-        }
 
         res.status(200).json({ success: true, data: product });
     } catch (error) {
@@ -258,14 +258,44 @@ exports.deleteProduct = async (req, res, next) => {
             return res.status(401).json({ success: false, error: 'Not authorized to delete this product' });
         }
 
-        // Delete from Cloudinary first
-        if (product.images && product.images.length > 0) {
-            for (const imgUrl of product.images) {
-                await deleteFromUrl(imgUrl);
-            }
+        // Check if product is associated with any active orders
+        const Order = require('../models/Order');
+        const activeOrder = await Order.findOne({
+            'items.product': req.params.id,
+            $or: [
+                { status: { $nin: ['completed', 'cancelled', 'refunded'] } },
+                {
+                    sellerStats: {
+                        $elemMatch: {
+                            seller: productOwnerId,
+                            status: { $nin: ['completed', 'cancelled', 'refunded'] }
+                        }
+                    }
+                },
+                {
+                    items: {
+                        $elemMatch: {
+                            product: req.params.id,
+                            disputeStatus: { $in: ['open', 'under_review', 'investigating', 'awaiting_seller', 'seller_responded'] }
+                        }
+                    }
+                }
+            ]
+        });
+
+        if (activeOrder) {
+            const message = 'This product cannot be deleted because it has active orders. Archive or deactivate the product instead.';
+            return res.status(409).json({
+                success: false,
+                message,
+                error: message
+            });
         }
 
-        await product.deleteOne();
+        // Perform Soft Delete to preserve historical order references
+        product.isDeleted = true;
+        product.deletedAt = new Date();
+        await product.save();
 
         res.status(200).json({ success: true, data: {} });
     } catch (error) {

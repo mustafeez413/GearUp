@@ -130,6 +130,7 @@ const WholesalerOrderDetailsPage = ({ params }) => {
                     status: o.status || 'pending',
                     date: o.createdAt || new Date().toISOString(),
                     sellers: Array.from(sellerMap.entries()).map(([id, name]) => ({ id, name })),
+                    sellerStats: o.sellerStats || [],
                     paymentMethod: o.paymentMethod,
                     isPaymentVerified: o.isPaymentVerified,
                     trackingLog: o.trackingLog || [],
@@ -214,15 +215,15 @@ const WholesalerOrderDetailsPage = ({ params }) => {
         return configs[status] || { color: 'text-slate-500 bg-slate-50 border-slate-100', icon: Clock };
     };
 
-    const handleConfirmDelivery = async () => {
-        if (!confirm("Confirm you received all items? This completes the order on your side.")) return;
+    const handleConfirmDelivery = async (targetSellerId = null) => {
+        if (!confirm("Confirm delivery for these items? This will finalize this seller portion of your order.")) return;
         try {
             setLoading(true);
             const token = localStorage.getItem('token');
             const response = await fetch(`${getApiBaseUrl()}/api/orders/${id}/status`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                body: JSON.stringify({ status: 'completed' })
+                body: JSON.stringify({ status: 'completed', sellerId: targetSellerId })
             });
             const data = await response.json();
             if (data.success) {
@@ -265,7 +266,13 @@ const WholesalerOrderDetailsPage = ({ params }) => {
     const currentUserId = String(user?.id || user?._id || '');
     const isOrderBuyer = Boolean(currentUserId && order.buyerId === currentUserId);
 
-    const canDisputeItems = isOrderBuyer && DISPUTABLE_ORDER_STATUSES.includes(order.status?.toLowerCase());
+    const getItemSellerStatus = (item) => {
+        const sellerId = getOrderItemSellerId(item);
+        const stat = (order.sellerStats || []).find(
+            (s) => String(s.seller?._id || s.seller || '') === sellerId
+        );
+        return (stat?.status || order.status || 'pending').toLowerCase();
+    };
 
     const getItemDisputeRecord = (item) => {
         const productId = getOrderItemProductId(item);
@@ -281,7 +288,10 @@ const WholesalerOrderDetailsPage = ({ params }) => {
     };
 
     const canFileDisputeForItem = (item) => {
-        if (!canDisputeItems) return false;
+        if (!isOrderBuyer) return false;
+        const sellerStatus = getItemSellerStatus(item);
+        const isSellerEligible = ['delivered', 'completed'].includes(sellerStatus);
+        if (!isSellerEligible) return false;
         return !isItemDisputeLocked(getItemDisputeStatus(item));
     };
 
@@ -299,14 +309,20 @@ const WholesalerOrderDetailsPage = ({ params }) => {
         if (status === 'resolved') {
             return { label: 'Dispute Closed', className: 'text-slate-600 bg-slate-50 border-slate-200' };
         }
-        const orderStatus = order.status?.toLowerCase();
-        if (orderStatus === 'delivered') {
+        const sellerStatus = getItemSellerStatus(item);
+        if (sellerStatus === 'delivered') {
             return { label: 'Delivered', className: 'text-emerald-700 bg-emerald-50 border-emerald-100' };
         }
-        if (orderStatus === 'completed') {
+        if (sellerStatus === 'completed') {
             return { label: 'Completed', className: 'text-emerald-700 bg-emerald-50 border-emerald-100' };
         }
-        return { label: order.status, className: 'text-emerald-700 bg-emerald-50 border-emerald-100' };
+        if (sellerStatus === 'shipped') {
+            return { label: 'Shipped', className: 'text-indigo-600 bg-indigo-50 border-indigo-100' };
+        }
+        if (sellerStatus === 'processing') {
+            return { label: 'Processing', className: 'text-blue-600 bg-blue-50 border-blue-100' };
+        }
+        return { label: sellerStatus || 'Pending', className: 'text-amber-600 bg-amber-50 border-amber-100' };
     };
 
     const refreshDisputeState = () => {

@@ -69,6 +69,8 @@ const UserSchema = new mongoose.Schema({
                 message: 'Please select a valid province.'
             }
         },
+        address: String,
+        businessAddress: String,
         phone: {
             type: String,
             validate: {
@@ -79,11 +81,16 @@ const UserSchema = new mongoose.Schema({
                 message: 'Please add a valid Pakistan phone number'
             }
         },
+        businessPhone: String,
         taxId: {
             type: String,
             match: [/^\d{7,9}$/, 'NTN must be 7-9 numeric digits']
         },
         businessLicense: String,
+        documentType: {
+            type: String,
+            default: 'Business License'
+        },
         isVerified: {
             type: Boolean,
             default: false
@@ -208,16 +215,28 @@ UserSchema.methods.getResetPasswordToken = function () {
     return resetToken;
 };
 
-// Normalize Pakistan location fields to canonical values before save
+// Normalize Pakistan location fields and ensure single source of truth for business address and phone
 UserSchema.pre('save', function () {
-    if (this.businessDetails?.city) {
-        const matchedCity = findCityMatch(this.businessDetails.city);
-        if (matchedCity) {
-            this.businessDetails.city = matchedCity;
+    if (this.businessDetails) {
+        if (this.businessDetails.city) {
+            const matchedCity = findCityMatch(this.businessDetails.city);
+            if (matchedCity) {
+                this.businessDetails.city = matchedCity;
+            }
         }
-    }
-    if (this.businessDetails?.province) {
-        this.businessDetails.province = normalizeProvince(this.businessDetails.province);
+        if (this.businessDetails.province) {
+            this.businessDetails.province = normalizeProvince(this.businessDetails.province);
+        }
+        const canonicalAddr = this.businessDetails.address || this.businessDetails.businessAddress || '';
+        if (canonicalAddr) {
+            this.businessDetails.address = canonicalAddr;
+            this.businessDetails.businessAddress = canonicalAddr;
+        }
+        const canonicalPhone = this.businessDetails.phone || this.businessDetails.businessPhone || '';
+        if (canonicalPhone) {
+            this.businessDetails.phone = canonicalPhone;
+            this.businessDetails.businessPhone = canonicalPhone;
+        }
     }
 });
 

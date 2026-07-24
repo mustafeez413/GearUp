@@ -356,21 +356,28 @@ const UserProfileInner = ({ isDashboard = false }) => {
             });
             const data = await res.json();
             if (data.success) {
-                console.log("Uploaded image URL:", data.data.avatar);
-                console.log("Fetched user profile:", data.data);
+                if (data.reverificationRequired) {
+                    setSuccessMessage('Profile updated. Changing verified business details resets verification status to Pending for Admin review.');
+                } else {
+                    setSuccessMessage(data.message || 'Profile updated successfully!');
+                }
                 updateUser({
                     ...user,
+                    ...(data.data || {}),
                     name: formData.name,
                     email: formData.email,
-                    avatar: data.data.avatar || user.avatar,
+                    avatar: data.data?.avatar || user.avatar,
+                    verificationStatus: data.reverificationRequired ? 'pending' : (data.data?.verificationStatus || user?.verificationStatus),
                     businessDetails: {
                         ...user?.businessDetails,
+                        ...(data.data?.businessDetails || {}),
                         businessName: formData.company,
                         phone: formData.phone,
                         address: formData.address,
                         city: formData.city,
                         province: formData.province,
-                        taxId: formData.taxId
+                        taxId: formData.taxId,
+                        isVerified: data.reverificationRequired ? false : (user?.businessDetails?.isVerified)
                     },
                     paymentDetails: {
                         ...user?.paymentDetails,
@@ -988,13 +995,13 @@ const UserProfileInner = ({ isDashboard = false }) => {
 
 
                                 {isEditing && (
-                                    <div className="p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex items-start gap-3">
-                                        <div className="p-1.5 bg-emerald-600 text-white rounded">
-                                            <CheckCircle size={14} className="stroke-[3]" />
+                                    <div className="p-4 bg-amber-50/70 border border-amber-200 rounded-xl flex items-start gap-3">
+                                        <div className="p-1.5 bg-amber-600 text-white rounded">
+                                            <AlertCircle size={14} className="stroke-[3]" />
                                         </div>
                                         <div>
-                                            <h4 className="font-body font-black text-[9px] uppercase tracking-widest text-emerald-900 mb-0.5">Profile Modification Mode</h4>
-                                            <p className="font-body text-emerald-800/70 text-xs font-medium">You are changing verified business credentials. These details will propagate dynamically on future orders, invoices, and supplier chats.</p>
+                                            <h4 className="font-body font-black text-[9px] uppercase tracking-widest text-amber-900 mb-0.5">Profile Modification Mode</h4>
+                                            <p className="font-body text-amber-800/80 text-xs font-medium">Modifying your verified Business Name, Address, or Mobile Number will automatically return your account verification status to Pending for Admin re-approval.</p>
                                         </div>
                                     </div>
                                 )}

@@ -68,56 +68,67 @@ exports.createOrder = async (req, res, next) => {
         const sellerMap = new Map();
         const orderItems = [];
 
-        for (const item of items) {
-            const product = await Product.findById(item.product);
-            if (!product) continue;
+        const { reserveStock, releaseReservedStock } = require('../utils/inventoryManager');
+        const reservedProducts = [];
 
-            const quantity = parseInt(item.quantity, 10);
-            if (isNaN(quantity) || quantity <= 0) {
-                return res.status(400).json({ success: false, error: 'Invalid item quantity. Must be a positive integer.' });
-            }
+        try {
+            for (const item of items) {
+                const product = await Product.findById(item.product);
+                if (!product) continue;
 
-            const itemSubtotal = product.pricePerBulkUnit * quantity;
-            const itemCommission = calculateItemCommission(itemSubtotal, feePercent);
-            const { platformCommission, sellerReceivable } = splitCommission(
-                itemSubtotal,
-                itemCommission,
-                commissionSettings.commissionChargedTo,
-                commissionSettings.commissionEnabled
-            );
+                const quantity = parseInt(item.quantity, 10);
+                if (isNaN(quantity) || quantity <= 0) {
+                    return res.status(400).json({ success: false, error: 'Invalid item quantity. Must be a positive integer.' });
+                }
 
-            const sellerId = (product.manufacturer || product.seller)?.toString();
-            if (!sellerId) continue;
+                const itemSubtotal = product.pricePerBulkUnit * quantity;
+                const itemCommission = calculateItemCommission(itemSubtotal, feePercent);
+                const { platformCommission, sellerReceivable } = splitCommission(
+                    itemSubtotal,
+                    itemCommission,
+                    commissionSettings.commissionChargedTo,
+                    commissionSettings.commissionEnabled
+                );
 
-            orderItems.push({
-                product: product._id,
-                seller: sellerId,
-                name: product.name,
-                sku: product.sku || '',
-                quantity: quantity,
-                price: product.pricePerBulkUnit,
-                bulkUnit: product.bulkUnit
-            });
+                const sellerId = (product.manufacturer || product.seller)?.toString();
+                if (!sellerId) continue;
 
-            if (!sellerMap.has(sellerId)) {
-                sellerMap.set(sellerId, {
+                // Reserve stock atomically
+                await reserveStock(product._id, quantity, null, buyerId);
+                reservedProducts.push({ productId: product._id, quantity });
+
+                orderItems.push({
+                    product: product._id,
                     seller: sellerId,
-                    subtotal: 0,
-                    platformCommission: 0,
-                    sellerReceivable: 0
+                    name: product.name,
+                    sku: product.sku || '',
+                    quantity: quantity,
+                    price: product.pricePerBulkUnit,
+                    bulkUnit: product.bulkUnit
                 });
+
+                if (!sellerMap.has(sellerId)) {
+                    sellerMap.set(sellerId, {
+                        seller: sellerId,
+                        subtotal: 0,
+                        platformCommission: 0,
+                        sellerReceivable: 0
+                    });
+                }
+
+                const stats = sellerMap.get(sellerId);
+                stats.subtotal += itemSubtotal;
+                stats.platformCommission += platformCommission;
+                stats.sellerReceivable += sellerReceivable;
+
+                subtotalAmount += itemSubtotal;
+                platformCommissionTotal += platformCommission;
             }
-
-            const stats = sellerMap.get(sellerId);
-            stats.subtotal += itemSubtotal;
-            stats.platformCommission += platformCommission;
-            stats.sellerReceivable += sellerReceivable;
-
-            subtotalAmount += itemSubtotal;
-            platformCommissionTotal += platformCommission;
-
-            product.stock -= quantity;
-            await product.save();
+        } catch (reserveErr) {
+            for (const resItem of reservedProducts) {
+                await releaseReservedStock(resItem.productId, resItem.quantity, null, buyerId, 'Order Cancelled');
+            }
+            return res.status(400).json({ success: false, error: reserveErr.message });
         }
 
         if (orderItems.length === 0) {
@@ -374,9 +385,9 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        const actingSellerId = req.user.role === 'manufacturer' ? req.user.id : null;
-        const sellerStatBefore = actingSellerId
-            ? order.sellerStats.find((s) => s.seller?.toString() === actingSellerId)
+        const targetSellerId = req.body.sellerId || (req.user.role === 'manufacturer' ? req.user.id : null);
+        const sellerStatBefore = targetSellerId
+            ? order.sellerStats.find((s) => (s.seller?._id || s.seller)?.toString() === String(targetSellerId))
             : null;
         const previousSellerStatus = sellerStatBefore?.status;
 
@@ -410,22 +421,74 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        if (req.user.role === 'admin') {
-            if (normalizedStatus) order.status = normalizedStatus;
-        } else if (order.buyer?.toString() === req.user.id && (normalizedStatus === 'delivered' || normalizedStatus === 'completed')) {
-            order.status = 'completed';
-        } else {
-            // Seller can update their portion
-            const sellerStat = order.sellerStats.find(s => s.seller?.toString() === req.user.id);
-            if (!sellerStat) {
-                return res.status(403).json({ success: false, error: 'Not authorized' });
-            }
-            if (normalizedStatus) sellerStat.status = normalizedStatus;
+        const { deriveMasterOrderStatus } = require('../utils/orderLifecycleUtils');
 
-            // If all sellers marked as Shipped/Completed, update overall order status
-            const allSellersSameStatus = order.sellerStats.every(s => s.status === normalizedStatus);
-            if (allSellersSameStatus) {
-                order.status = normalizedStatus;
+        if (req.user.role === 'admin') {
+            if (targetSellerId && order.sellerStats?.length) {
+                const stat = order.sellerStats.find(s => (s.seller?._id || s.seller)?.toString() === String(targetSellerId));
+                if (stat) {
+                    stat.status = normalizedStatus;
+                    if (normalizedStatus === 'delivered') stat.deliveredAt = new Date();
+                }
+            } else {
+                // If no specific seller target, update all sellerStats
+                (order.sellerStats || []).forEach(stat => {
+                    stat.status = normalizedStatus;
+                    if (normalizedStatus === 'delivered') stat.deliveredAt = new Date();
+                });
+            }
+        } else if (order.buyer?.toString() === req.user.id) {
+            // Buyer action (e.g. Confirming Delivery or Cancelling)
+            const isCancel = normalizedStatus === 'cancelled';
+            const targetStatus = isCancel ? 'cancelled' : 'completed';
+
+            if (targetSellerId && order.sellerStats?.length) {
+                const stat = order.sellerStats.find(s => (s.seller?._id || s.seller)?.toString() === String(targetSellerId));
+                if (stat) {
+                    stat.status = targetStatus;
+                }
+            } else {
+                (order.sellerStats || []).forEach(stat => {
+                    if (isCancel) {
+                        stat.status = 'cancelled';
+                    } else if (['delivered', 'shipped', 'processing'].includes((stat.status || '').toLowerCase())) {
+                        stat.status = 'completed';
+                    }
+                });
+            }
+        } else {
+            // Seller updates their portion
+            const sellerStat = order.sellerStats.find(s => (s.seller?._id || s.seller)?.toString() === req.user.id);
+            if (!sellerStat) {
+                return res.status(403).json({ success: false, error: 'Not authorized to update this order' });
+            }
+            if (normalizedStatus) {
+                sellerStat.status = normalizedStatus;
+                if (normalizedStatus === 'delivered') {
+                    sellerStat.deliveredAt = new Date();
+                }
+            }
+        }
+
+        // Derive Master Order Status from all sellerStats
+        order.status = deriveMasterOrderStatus(order.sellerStats);
+
+        // Handle inventory transitions: Shipped vs Cancelled
+        if (normalizedStatus === 'shipped') {
+            const { shipStock } = require('../utils/inventoryManager');
+            for (const item of order.items || []) {
+                const itemSellerId = (item.seller?._id || item.seller)?.toString();
+                if (!targetSellerId || itemSellerId === String(targetSellerId)) {
+                    await shipStock(item.product?._id || item.product, item.quantity, order._id, req.user.id);
+                }
+            }
+        } else if (normalizedStatus === 'cancelled') {
+            const { releaseReservedStock } = require('../utils/inventoryManager');
+            for (const item of order.items || []) {
+                const itemSellerId = (item.seller?._id || item.seller)?.toString();
+                if (!targetSellerId || itemSellerId === String(targetSellerId)) {
+                    await releaseReservedStock(item.product?._id || item.product, item.quantity, order._id, req.user.id, req.user.role === 'manufacturer' ? 'Seller Rejected' : 'Order Cancelled');
+                }
             }
         }
 
@@ -439,8 +502,7 @@ exports.updateOrderStatus = async (req, res, next) => {
             (normalizedStatus === 'delivered' || normalizedStatus === 'completed');
 
         if (normalizedStatus) {
-            const trackRole = req.user.role;
-            if (actingSellerId && ['processing', 'shipped', 'delivered'].includes(normalizedStatus)) {
+            if (targetSellerId && ['processing', 'shipped', 'delivered'].includes(normalizedStatus)) {
                 appendTrackingLog(order, normalizedStatus, req.user);
             } else if (order.buyer?.toString() === req.user.id && buyerConfirmedDelivery) {
                 appendTrackingLog(order, 'completed', req.user);
@@ -449,18 +511,12 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        if (order.status === 'completed' || buyerConfirmedDelivery) {
-            try {
-                order.status = 'completed';
-                const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
-                await releaseOrderPaymentTransactionally(order._id);
-            } catch (payoutErr) {
-                console.error('[payout] auto-release on buyer confirm:', payoutErr.message);
-            }
-        } else if (order.status === 'delivered' || normalizedStatus === 'delivered') {
-            if (!order.deliveredAt) {
-                order.deliveredAt = new Date();
-            }
+        // Auto-release payouts for completed seller sub-orders
+        try {
+            const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
+            await releaseOrderPaymentTransactionally(order._id);
+        } catch (payoutErr) {
+            console.error('[payout] auto-release on order update:', payoutErr.message);
         }
 
         await order.save();

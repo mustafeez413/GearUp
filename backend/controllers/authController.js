@@ -86,7 +86,7 @@ exports.register = async (req, res, next) => {
             otp,
             otpExpires,
             agreedToTerms,
-            verificationStatus: role === 'admin' ? 'approved' : (role === 'manufacturer' ? 'business_required' : 'approved'),
+            verificationStatus: role === 'admin' ? 'approved' : 'business_required',
             businessDetails: {
                 businessName,
                 phone,
@@ -343,7 +343,7 @@ exports.submitVerification = async (req, res, next) => {
             return res.status(400).json({ success: false, error: documentError });
         }
 
-                const { taxId, address, phone, website, city, sellerType } = req.body;
+        const { taxId, address, phone, website, city, sellerType, documentType } = req.body;
 
         // Delete old license if exists
         const userBefore = await User.findById(req.user.id);
@@ -355,16 +355,23 @@ exports.submitVerification = async (req, res, next) => {
         const uploadResult = await uploadToCloudinary(req.file.buffer, 'documents');
         const businessLicense = uploadResult.secure_url;
 
+        const requesterRole = req.user.role;
+        const defaultDocType = requesterRole === 'wholesaler'
+            ? (documentType || 'Business Registration Certificate')
+            : 'Business License';
+
         const updateData = {
             'businessDetails.taxId': taxId,
             'businessDetails.address': address,
+            'businessDetails.businessAddress': address,
             'businessDetails.phone': phone,
+            'businessDetails.businessPhone': phone,
             'businessDetails.website': website,
             'businessDetails.city': city,
             'businessDetails.businessLicense': businessLicense,
+            'businessDetails.documentType': defaultDocType,
         };
 
-        const requesterRole = req.user.role;
         if (sellerType || requesterRole === 'wholesaler') {
             updateData['businessDetails.sellerType'] = requesterRole === 'wholesaler' ? 'wholesaler' : sellerType;
         }
@@ -396,7 +403,9 @@ exports.submitVerification = async (req, res, next) => {
 // Private — secure access to the authenticated user's submitted verification file
 exports.getVerificationDocument = async (req, res, next) => {
     try {
-        const user = await User.findById(req.user.id).select('businessDetails.businessLicense');
+        const { getSecureDocumentUrl } = require('../utils/cloudinary');
+        const targetUserId = (req.user.role === 'admin' && req.query.userId) ? req.query.userId : req.user.id;
+        const user = await User.findById(targetUserId).select('businessDetails.businessLicense');
         const licensePath = user?.businessDetails?.businessLicense;
 
         if (!licensePath) {
@@ -405,10 +414,18 @@ exports.getVerificationDocument = async (req, res, next) => {
 
         // If it's a Cloudinary or remote URL
         if (licensePath.startsWith('http://') || licensePath.startsWith('https://')) {
-            return res.redirect(licensePath);
+            const secureUrl = getSecureDocumentUrl(licensePath);
+            return res.status(200).json({
+                success: true,
+                url: secureUrl
+            });
         }
         if (licensePath.startsWith('//')) {
-            return res.redirect(`https:${licensePath}`);
+            const secureUrl = getSecureDocumentUrl(`https:${licensePath}`);
+            return res.status(200).json({
+                success: true,
+                url: secureUrl
+            });
         }
 
         const cleanPath = licensePath.replace(/\\/g, '/').split('?')[0];
@@ -683,12 +700,12 @@ exports.updateProfile = async (req, res, next) => {
         if (req.body.email) {
             const newEmail = req.body.email.toLowerCase().trim();
             fieldsToUpdate.email = newEmail;
-            
-            const emailExists = await User.findOne({ 
-                email: newEmail, 
-                _id: { $ne: req.user._id } 
+
+            const emailExists = await User.findOne({
+                email: newEmail,
+                _id: { $ne: req.user._id }
             });
-            
+
             if (emailExists) {
                 return res.status(400).json({ success: false, error: 'EMAIL ALREADY IN USE BY ANOTHER ACCOUNT' });
             }
@@ -698,17 +715,37 @@ exports.updateProfile = async (req, res, next) => {
             fieldsToUpdate.paymentDetails = paymentDetails;
         }
 
+        const userBefore = await User.findById(req.user.id);
+        let reverificationRequired = false;
+
+        if (userBefore && (userBefore.verificationStatus === 'approved' || userBefore.businessDetails?.isVerified)) {
+            const oldName = (userBefore.businessDetails?.businessName || userBefore.name || '').trim();
+            const newName = (businessDetails?.businessName || req.body.name || '').trim();
+
+            const oldAddr = (userBefore.businessDetails?.address || userBefore.businessDetails?.businessAddress || '').trim();
+            const newAddr = (businessDetails?.address || businessDetails?.businessAddress || '').trim();
+
+            const oldPhone = (userBefore.businessDetails?.phone || userBefore.businessDetails?.businessPhone || '').trim();
+            const newPhone = (businessDetails?.phone || businessDetails?.businessPhone || '').trim();
+
+            if ((newName && oldName && newName !== oldName) ||
+                (newAddr && oldAddr && newAddr !== oldAddr) ||
+                (newPhone && oldPhone && newPhone !== oldPhone)) {
+                reverificationRequired = true;
+                fieldsToUpdate.verificationStatus = 'pending';
+                if (!fieldsToUpdate.businessDetails) fieldsToUpdate.businessDetails = {};
+                fieldsToUpdate.businessDetails.isVerified = false;
+                fieldsToUpdate.verificationSubmittedAt = new Date();
+            }
+        }
+
         if (req.file) {
-            // Delete old avatar if exists
-            const userBefore = await User.findById(req.user.id);
             if (userBefore && userBefore.avatar) {
                 await deleteFromUrl(userBefore.avatar);
             }
-            // Upload new avatar to Cloudinary
             const uploadResult = await uploadToCloudinary(req.file.buffer, 'avatars');
             fieldsToUpdate.avatar = uploadResult.secure_url;
         } else if (req.body.removeAvatar === 'true') {
-            const userBefore = await User.findById(req.user.id);
             if (userBefore && userBefore.avatar) {
                 await deleteFromUrl(userBefore.avatar);
             }
@@ -720,9 +757,14 @@ exports.updateProfile = async (req, res, next) => {
             runValidators: false
         });
 
-        res.status(200).json({
+        const serialized = serializeUserForClient(user);
+        return res.status(200).json({
             success: true,
-            data: serializeUserForClient(user)
+            reverificationRequired,
+            message: reverificationRequired
+                ? 'Your updated business details require Admin review. Verification status has returned to Pending.'
+                : 'Profile updated successfully.',
+            data: serialized
         });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
@@ -745,7 +787,7 @@ exports.googleAuth = async (req, res, next) => {
             audience: process.env.GOOGLE_CLIENT_ID || '373271456084-6flk0m1dvv2j8fipt5m787vt5jg8cv2c.apps.googleusercontent.com',
         });
         const payload = ticket.getPayload();
-        
+
         const { sub: googleId, email, name, picture } = payload;
 
         let user = await User.findOne({ email });
@@ -768,7 +810,7 @@ exports.googleAuth = async (req, res, next) => {
                 role: defaultRole,
                 avatar: picture,
                 isEmailVerified: true,
-                verificationStatus: defaultRole === 'manufacturer' ? 'business_required' : 'approved'
+                verificationStatus: defaultRole === 'admin' ? 'approved' : 'business_required'
             });
             sendTokenResponse(user, 201, res);
         }

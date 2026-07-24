@@ -13,7 +13,7 @@ import {
 } from 'recharts';
 import {
     Package, Banknote, AlertCircle, HeartPulse, TrendingUp, RefreshCw,
-    ShoppingCart, ArrowRight, Eye, ShieldAlert, CheckCircle2, Activity, Sparkles
+    ShoppingCart, ArrowRight, ShieldAlert, CheckCircle2, Activity, Sparkles
 } from 'lucide-react';
 import { isSellerOnOrder, resolveUserId } from '@/lib/dashboardAnalytics';
 import { formatPKR } from '@/lib/financeUtils';
@@ -104,17 +104,18 @@ export default function InventoryOverviewPage() {
         });
 
         products.forEach(p => {
-            const stock = p.stock || 0;
-            inventoryValue += (stock * (p.pricePerBulkUnit || 0));
+            const total = p.totalStock !== undefined ? p.totalStock : (p.stock || 0);
+            const avail = p.availableStock !== undefined ? p.availableStock : (p.stock || 0);
+            inventoryValue += (total * (p.pricePerBulkUnit || 0));
 
-            if (stock === 0) outOfStockCount++;
-            else if (stock < 10) criticalStockCount++;
-            else if (stock < 30) lowStockCount++;
+            if (avail === 0) outOfStockCount++;
+            else if (avail < 10) criticalStockCount++;
+            else if (avail < 30) lowStockCount++;
             else healthyStockCount++;
 
             const cat = p.category || 'Other';
             if (!categoryCount[cat]) categoryCount[cat] = 0;
-            categoryCount[cat] += stock;
+            categoryCount[cat] += total;
         });
 
         // Format category data for chart
@@ -380,30 +381,36 @@ export default function InventoryOverviewPage() {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
-                                    {[...criticalStockProducts, ...lowStockProducts].slice(0, 8).map((product) => (
-                                        <tr key={product._id} className="hover:bg-slate-50/50 transition-colors text-sm font-medium text-slate-700">
-                                            <td className="px-6 py-4 max-w-[200px] truncate" title={product.name}>{product.name}</td>
-                                            <td className="px-6 py-4 text-slate-500">{product.category || 'N/A'}</td>
-                                            <td className="px-6 py-4 text-center font-bold text-slate-900">{product.stock || 0}</td>
-                                            <td className="px-6 py-4">
-                                                <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
-                                                    (product.stock === 0) ? 'bg-rose-100 text-rose-700' :
-                                                    (product.stock < 10) ? 'bg-amber-100 text-amber-700' :
-                                                    'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                    {(product.stock === 0) ? 'Out of Stock' : (product.stock < 10) ? 'Critical' : 'Low'}
-                                                </span>
-                                            </td>
-                                            <td className="px-6 py-4 text-right">
-                                                <button 
-                                                    onClick={() => router.push(`/manufacturer/products/edit/${product._id}`)}
-                                                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors shadow-sm"
-                                                >
-                                                    Update
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
+                                                    {[...criticalStockProducts, ...lowStockProducts].slice(0, 8).map((product) => {
+                                        const avail = product.availableStock !== undefined ? product.availableStock : (product.stock || 0);
+                                        const total = product.totalStock !== undefined ? product.totalStock : (product.stock || 0);
+                                        return (
+                                            <tr key={product._id} className="hover:bg-slate-50/50 transition-colors text-sm font-medium text-slate-700">
+                                                <td className="px-6 py-4 max-w-[200px] truncate" title={product.name}>{product.name}</td>
+                                                <td className="px-6 py-4 text-slate-500">{product.category || 'N/A'}</td>
+                                                <td className="px-6 py-4 text-center font-bold text-slate-900">
+                                                    <span className="text-[#00A878]">{avail}</span> / <span className="text-slate-500">{total} {product.bulkUnit || 'unit'}s</span>
+                                                </td>
+                                                <td className="px-6 py-4">
+                                                    <span className={`px-2.5 py-1 rounded-full text-[10px] uppercase font-bold tracking-wider ${
+                                                        (avail === 0) ? 'bg-rose-100 text-rose-700' :
+                                                        (avail < 10) ? 'bg-amber-100 text-amber-700' :
+                                                        'bg-blue-100 text-blue-700'
+                                                    }`}>
+                                                        {(avail === 0) ? 'Out of Stock' : (avail < 10) ? 'Critical' : 'Low'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-6 py-4 text-right">
+                                                    <button 
+                                                        onClick={() => router.push(`/manufacturer/products/edit/${product._id}`)}
+                                                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors shadow-sm"
+                                                    >
+                                                        Update
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
                                     {criticalStockProducts.length === 0 && lowStockProducts.length === 0 && (
                                         <tr>
                                             <td colSpan="5" className="px-6 py-12 text-center">
