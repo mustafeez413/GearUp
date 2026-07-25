@@ -13,7 +13,9 @@ import {
     CheckCircle,
     Plus,
     Image as ImageIcon,
-    Trash2
+    Trash2,
+    ChevronLeft,
+    Banknote
 } from 'lucide-react';
 import Link from 'next/link';
 import {
