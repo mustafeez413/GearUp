@@ -48,7 +48,6 @@ const UserSchema = new mongoose.Schema({
         businessName: String,
         shopNumber: String,
         street: String,
-        area: String,
         city: {
             type: String,
             validate: {

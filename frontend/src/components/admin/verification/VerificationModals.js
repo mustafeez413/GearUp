@@ -226,10 +226,14 @@ export function BusinessProfileModal({ open, user, onClose }) {
       </div>
       <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-6 max-h-[70vh] overflow-y-auto">
         <Section title="Company">
+          <Row label="Business Name" value={getBusinessName(user)} />
           <Row label="Business type" value={user.role === 'manufacturer' ? 'Manufacturer' : 'Wholesaler'} />
           <Row label="Email" value={user.email} />
-          <Row label="Phone" value={bd.phone} />
-          <Row label="Location" value={[bd.city, bd.province].filter(Boolean).join(', ') || '—'} />
+          <Row label="Phone" value={bd.phone || bd.businessPhone} />
+          <Row label="Business Address" value={bd.address || bd.businessAddress || [bd.shopNumber, bd.street, bd.city, bd.province].filter(Boolean).join(', ') || '—'} />
+          <Row label="City" value={bd.city || '—'} />
+          <Row label="NTN" value={bd.taxId || '—'} />
+          <Row label="Website" value={bd.website || user.website || '—'} />
           <Row label="Registered" value={formatDate(user.createdAt)} />
           <Row label="Status" value={getApplicantStatus(user)} />
         </Section>

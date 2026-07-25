@@ -48,7 +48,16 @@ function AnimatedBadge({ badge, idx }) {
 }
 
 function AdminDashboardContent() {
-  const { loading, overviewMetrics } = useAdminDashboardData();
+  const { 
+    loading, 
+    overviewMetrics,
+    orders,
+    transactions,
+    usersList,
+    disputes,
+    verificationOverview,
+    adOverview
+  } = useAdminDashboardData();
 
   if (loading) {
     return (
@@ -78,6 +87,12 @@ function AdminDashboardContent() {
 
   const finalMetrics = {
     ...metrics,
+    orders,
+    transactions,
+    usersList,
+    disputes,
+    verificationOverview,
+    adOverview,
     priorityAlerts: metrics.priorityAlerts?.length > 0 ? metrics.priorityAlerts : dynamicAlerts
   };
 

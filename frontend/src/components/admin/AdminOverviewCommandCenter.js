@@ -1,6 +1,8 @@
 'use client';
 
+import React, { useMemo } from 'react';
 import Link from 'next/link';
+import { formatRelativeTime } from '@/hooks/useAdminDashboardData';
 import {
   ShieldCheck,
   CreditCard,
@@ -377,21 +379,145 @@ export default function AdminOverviewCommandCenter({ metrics = {} }) {
 
   const totalOrders = metrics.platformGlance?.totalOrders || 0;
 
-  // Mocking Approval Queue since it wasn't in original metrics
-  const approvalQueue = [
-    { id: 1, type: 'Verification', name: 'Apex Sports Mfg', date: '10 min ago', status: 'Pending Review' },
-    { id: 2, type: 'Payment', name: 'Global Gear Dist.', date: '1 hr ago', status: 'Awaiting Match' },
-    { id: 3, type: 'Payout', name: 'Elite Athletics', date: '3 hrs ago', status: 'Processing' },
-    { id: 4, type: 'Advertisement', name: 'Summer Promo 2026', date: '1 day ago', status: 'Pending Approval' },
-  ];
+  // Dynamically build Approval Queue from real pending items across the platform
+  const approvalQueue = useMemo(() => {
+    const queue = [];
+
+    // 1. Pending Verifications
+    const pendingVerifs = (metrics.verificationOverview?.pendingUsers || (metrics.usersList || []).filter(u => u.verificationStatus === 'pending' || u.verificationStatus === 'submitted' || (u.businessDetails?.documentsUploaded && u.verificationStatus !== 'approved')));
+    (pendingVerifs || []).slice(0, 5).forEach((u, i) => {
+      queue.push({
+        id: `verif-${u._id || i}`,
+        type: 'Verification',
+        name: u.businessDetails?.businessName || u.name || u.email || 'Business Verification',
+        date: formatRelativeTime(u.verificationSubmittedAt || u.createdAt),
+        rawDate: new Date(u.verificationSubmittedAt || u.createdAt).getTime(),
+        status: 'Pending Review',
+        subtitle: 'Manufacturer Verification'
+      });
+    });
+
+    // 2. Pending Payment Reviews
+    const pendingPayments = (metrics.orders || []).filter(o => {
+      const status = (o.paymentStatus || '').toLowerCase();
+      return status === 'pending_approval' || status === 'pending approval' || status === 'submitted';
+    });
+    pendingPayments.slice(0, 5).forEach((o, i) => {
+      queue.push({
+        id: `pay-${o._id || i}`,
+        type: 'Payment',
+        name: o.buyer?.name || o.buyer?.email || `Order #${(o._id || '').slice(-6).toUpperCase()}`,
+        date: formatRelativeTime(o.updatedAt || o.createdAt),
+        rawDate: new Date(o.updatedAt || o.createdAt).getTime(),
+        status: 'Awaiting Match',
+        subtitle: `Payment Proof Review (#${(o._id || '').slice(-6).toUpperCase()})`
+      });
+    });
+
+    // 3. Pending Payout Requests
+    const pendingPayouts = (metrics.transactions || []).filter(t => (t.type === 'payout' || t.type === 'Withdrawal') && t.status === 'Pending');
+    pendingPayouts.slice(0, 5).forEach((t, i) => {
+      queue.push({
+        id: `payout-${t._id || i}`,
+        type: 'Payout',
+        name: t.seller?.name || t.user?.name || 'Seller Withdrawal',
+        date: formatRelativeTime(t.createdAt || t.timestamp),
+        rawDate: new Date(t.createdAt || t.timestamp).getTime(),
+        status: 'Processing',
+        subtitle: `Seller Withdrawal (${t.sellerAmount || t.amount ? 'PKR ' + Number(t.sellerAmount || t.amount).toLocaleString() : 'Payout'})`
+      });
+    });
+
+    // 4. Pending Advertisements
+    const pendingAds = (metrics.adOverview?.pendingList || []);
+    pendingAds.slice(0, 5).forEach((ad, i) => {
+      queue.push({
+        id: `ad-${ad._id || i}`,
+        type: 'Advertisement',
+        name: ad.campaignName || ad.title || 'Sponsored Campaign',
+        date: formatRelativeTime(ad.createdAt),
+        rawDate: new Date(ad.createdAt).getTime(),
+        status: 'Pending Approval',
+        subtitle: 'Sponsored Campaign'
+      });
+    });
+
+    // 5. Open Disputes
+    const openDisputes = (metrics.disputes || []).filter(d => ['open', 'awaiting_seller', 'seller_responded', 'under_review', 'investigating'].includes(d.status));
+    openDisputes.slice(0, 5).forEach((d, i) => {
+      queue.push({
+        id: `dispute-${d._id || i}`,
+        type: 'Dispute',
+        name: d.reason || d.title || `Order Issue #${(d._id || '').slice(-6).toUpperCase()}`,
+        date: formatRelativeTime(d.createdAt),
+        rawDate: new Date(d.createdAt).getTime(),
+        status: 'Pending Review',
+        subtitle: 'Dispute Resolution'
+      });
+    });
+
+    return queue.sort((a, b) => (b.rawDate || 0) - (a.rawDate || 0));
+  }, [metrics]);
 
   const approvalQueueCount = approvalQueue.length;
-  const awaitingMatchCount = approvalQueue.filter((item) => item.status === 'Awaiting Match').length;
+  const awaitingMatchCount = approvalQueue.filter((item) => item.status === 'Awaiting Match' || item.status === 'Pending Review').length;
   const updatedLabel = actionCenterSummary.updatedLabel || 'Now';
 
   return (
     <div className="max-w-[1600px] mx-auto space-y-16 animate-in fade-in duration-500 pb-20 px-6 md:px-10 text-[#0F172A]">
       
+      {/* SECTION 0: ADMIN OVERVIEW KPI CARDS */}
+      <section className="w-full">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-6 gap-4">
+          <div>
+            <h2 className="text-[24px] font-extrabold text-[#0F172A] tracking-tight">Admin Overview</h2>
+            <p className="text-[14px] text-slate-500 font-medium mt-1">
+              Real-time marketplace performance, growth trends, and platform activity.
+            </p>
+          </div>
+          <Link
+            href="/admin/analytics/marketplace"
+            className="inline-flex items-center gap-2 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-[#0F172A] px-4 py-2.5 text-[13px] font-bold shadow-sm transition-all outline-none w-fit"
+          >
+            View Analytics
+            <ChevronRight size={16} />
+          </Link>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-5">
+          {[
+            { label: 'Manufacturers', value: manufacturers, icon: Building2, color: 'text-[#0F766E]', bg: 'bg-[#F0FDFC]', trend: '+12%' },
+            { label: 'Wholesalers', value: wholesalers, icon: Store, color: 'text-[#059669]', bg: 'bg-[#ECFDF5]', trend: '+8%' },
+            { label: 'Products', value: products, icon: Package, color: 'text-[#6366F1]', bg: 'bg-[#EEF2FF]', trend: '+15%' },
+            { label: 'Orders', value: totalOrders, icon: ShoppingCart, color: 'text-[#D97706]', bg: 'bg-[#FFFBEB]', trend: '+18%' },
+            { label: 'Sponsored Ads', value: advertisements, icon: Megaphone, color: 'text-[#BE185D]', bg: 'bg-[#FFE4E6]', trend: 'Active' },
+          ].map((kpi, idx) => {
+            const Icon = kpi.icon;
+            return (
+              <div
+                key={idx}
+                className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 flex flex-col justify-between"
+              >
+                <div className="flex items-center justify-between gap-2 mb-3">
+                  <span className="text-[#64748B] font-bold text-[11px] uppercase tracking-wider truncate">{kpi.label}</span>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${kpi.bg}`}>
+                    <Icon size={18} className={kpi.color} />
+                  </div>
+                </div>
+                <div className="flex items-baseline justify-between mt-1">
+                  <p className="font-heading text-3xl font-black text-slate-900 tracking-tight">
+                    {kpi.value}
+                  </p>
+                  <span className="text-[11px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200/50">
+                    {kpi.trend}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
       {/* SECTION 1: ACTION CENTER */}
       <section className="w-full">
         <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)] p-6 sm:p-8">
@@ -471,287 +597,32 @@ export default function AdminOverviewCommandCenter({ metrics = {} }) {
         </div>
       </section>
 
-      {/* SECTION 2: FINANCIAL HEALTH */}
-      <section className="w-full">
-        <div className="overflow-hidden rounded-[24px] border border-slate-200/70 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)] p-6 sm:p-8">
-          <SectionHeader
-            title="Financial Health"
-            subtitle="Revenue, commissions, escrow balances, and payouts at a glance."
-            className="mb-8"
-            align="stacked"
-            chips={[
-              { key: 'revenue', label: 'Revenue tracking', className: 'bg-[#F8FAFC] text-[#64748B] border border-[#E2E8F0]' },
-              { key: 'live', label: 'Live metrics', className: 'bg-[#F0FDFA] text-[#14B8A6] border border-[#14B8A6]/20' },
-            ]}
-          />
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-5">
-            <FinanceKpiTile
-              label="Today's Revenue"
-              value={formatDashboardMoney(todayRevenue)}
-              trend={financialTrends.todayRevenue}
-              icon={Banknote}
-            />
-            <FinanceKpiTile
-              label="Monthly Revenue"
-              value={formatDashboardMoney(monthlyRevenue)}
-              trend={financialTrends.monthlyRevenue}
-              icon={TrendingUp}
-            />
-            <FinanceKpiTile
-              label="Commission Earned"
-              value={formatDashboardMoney(commissionEarned)}
-              trend={financialTrends.commissionEarned}
-              icon={Receipt}
-            />
-            <FinanceKpiTile
-              label="Ad Revenue"
-              value={formatDashboardMoney(advertisementRevenue)}
-              trend={0}
-              icon={Megaphone}
-            />
-            <FinanceKpiTile
-              label="Escrow Balance"
-              value={formatDashboardMoney(escrowBalance)}
-              trend={financialTrends.escrowBalance}
-              icon={Landmark}
-              isPrimary={true}
-            />
-            <FinanceKpiTile
-              label="Seller Payouts"
-              value={formatDashboardMoney(pendingPayoutAmount)}
-              trend={financialTrends.pendingPayoutAmount}
-              icon={CreditCard}
-            />
-          </div>
+
+
+      {/* ALERT CENTER */}
+      <section className="w-full rounded-[28px] border border-[#EAEFF5] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
+        <SectionHeader title="Alert Center" subtitle="Priority notifications requiring attention." />
+        <div className="space-y-3">
+          {(priorityAlerts || []).length > 0 ? (
+            (priorityAlerts || []).map((alert, idx) => (
+              <AlertRow 
+                key={idx} 
+                message={alert.message} 
+                type={alert.tone === 'rose' ? 'critical' : alert.tone === 'amber' ? 'warning' : 'info'} 
+                time="Now" 
+              />
+            ))
+          ) : (
+            <div className="p-6 rounded-[24px] border border-[#EAEFF5] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] text-center">
+              <div className="grid h-12 w-12 place-items-center rounded-full bg-[#F0FDF4] text-[#10B981] mx-auto mb-3">
+                <ShieldCheck size={18} />
+              </div>
+              <p className="text-[14px] font-semibold text-[#0F172A]">All clear</p>
+              <p className="text-[13px] text-[#64748B] mt-1">No urgent system alerts.</p>
+            </div>
+          )}
         </div>
       </section>
-
-      {/* 2-COLUMN DASHBOARD GRID: Marketplace Health (Left) + Monitoring Panels (Right) */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-32 lg:-ml-8">
-        
-        {/* LEFT COLUMN: Marketplace Health (Primary KPI Section) — 2/3 Width */}
-        <div className="lg:col-span-2 space-y-20">
-          
-          {/* SECTION 3: MARKETPLACE HEALTH — Premium SaaS Analytics Hero */}
-          <section className="relative overflow-hidden rounded-[32px] bg-[#07101f] px-6 py-10 shadow-[0_30px_80px_rgba(5,15,44,0.18)] sm:px-8 sm:py-12 lg:px-10 lg:py-14">
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(56,189,248,0.16),_transparent_28%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.12),_transparent_24%)]" />
-            <div className="pointer-events-none absolute inset-x-0 top-0 h-32 bg-gradient-to-b from-white/10 to-transparent" />
-            <div className="relative grid gap-10 justify-center">
-              <div className="mx-auto max-w-4xl text-center space-y-8">
-                <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.25em] text-sky-200 shadow-[0_10px_30px_rgba(15,23,42,0.08)]">
-                  MARKETPLACE HEALTH
-                </div>
-                <div className="space-y-4">
-                  <h2 className="text-[38px] md:text-[44px] lg:text-[48px] font-extrabold text-white tracking-[-0.04em] leading-tight">
-                    Marketplace Health
-                  </h2>
-                  <p className="mx-auto max-w-xl text-[16px] leading-8 text-slate-300">
-                    Real-time marketplace performance, growth trends, and platform activity.
-                  </p>
-                </div>
-                <div className="flex flex-wrap justify-center gap-4">
-                  <Link
-                    href="/admin/analytics/marketplace"
-                    className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-6 py-3 text-[14px] font-semibold text-[#0F172A] shadow-[0_12px_35px_rgba(255,255,255,0.18)] transition duration-300 hover:-translate-y-0.5 hover:shadow-[0_18px_45px_rgba(255,255,255,0.22)]"
-                  >
-                    View Analytics
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </Link>
-                </div>
-              </div>
-
-              {/* Snapshot panel removed to reclaim space and center hero content */}
-            </div>
-
-            <div className="relative z-10 -mt-1 mx-auto grid gap-4 sm:grid-cols-2 xl:grid-cols-5 max-w-6xl">
-              <HealthKpiCard
-                label="Manufacturers"
-                value={manufacturers}
-                icon={Building2}
-                iconBg="bg-[#F0FDFC]"
-                iconColor="text-[#0F766E]"
-                trend={12}
-                trendLabel="+12%"
-                positive
-                sparklineColor="#0F766E"
-              />
-              <HealthKpiCard
-                label="Wholesalers"
-                value={wholesalers}
-                icon={Store}
-                iconBg="bg-[#ECFDF5]"
-                iconColor="text-[#059669]"
-                trend={8}
-                trendLabel="+8%"
-                positive
-                sparklineColor="#059669"
-              />
-              <HealthKpiCard
-                label="Products"
-                value={products}
-                icon={Package}
-                iconBg="bg-[#EEF2FF]"
-                iconColor="text-[#6366F1]"
-                trend={15}
-                trendLabel="+15%"
-                positive
-                sparklineColor="#6366F1"
-              />
-              <HealthKpiCard
-                label="Orders"
-                value={totalOrders}
-                icon={ShoppingCart}
-                iconBg="bg-[#FFFBEB]"
-                iconColor="text-[#D97706]"
-                trend={18}
-                trendLabel="+18%"
-                positive
-                sparklineColor="#D97706"
-              />
-              <HealthKpiCard
-                label="Sponsored Ads"
-                value={advertisements}
-                icon={Megaphone}
-                iconBg="bg-[#FFE4E6]"
-                iconColor="text-[#BE185D]"
-                trend={-5}
-                trendLabel="-5%"
-                positive={false}
-                sparklineColor="#BE185D"
-              />
-            </div>
-          </section>
-        </div>
-
-        {/* RIGHT COLUMN: Monitoring Panels (Secondary) — 1/3 Width */}
-        <div className="lg:col-span-1 space-y-20">
-          
-          {/* SECTION 5: ALERT CENTER */}
-          <section className="rounded-[28px] border border-[#EAEFF5] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
-            <SectionHeader title="Alert Center" subtitle="Priority notifications requiring attention." />
-            <div className="space-y-3">
-              {(priorityAlerts || []).length > 0 ? (
-                (priorityAlerts || []).map((alert, idx) => (
-                  <AlertRow 
-                    key={idx} 
-                    message={alert.message} 
-                    type={alert.tone === 'rose' ? 'critical' : alert.tone === 'amber' ? 'warning' : 'info'} 
-                    time="Now" 
-                  />
-                ))
-              ) : (
-                <div className="p-6 rounded-[24px] border border-[#EAEFF5] bg-white shadow-[0_18px_40px_rgba(15,23,42,0.08)] text-center">
-                  <div className="grid h-12 w-12 place-items-center rounded-full bg-[#F0FDF4] text-[#10B981] mx-auto mb-3">
-                    <ShieldCheck size={18} />
-                  </div>
-                  <p className="text-[14px] font-semibold text-[#0F172A]">All clear</p>
-                  <p className="text-[13px] text-[#64748B] mt-1">No urgent system alerts.</p>
-                </div>
-              )}
-            </div>
-          </section>
-
-        </div>
-
-        <section className="lg:col-span-3 rounded-[28px] border border-[#E5E7EB] bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-          <div className="mx-auto max-w-4xl text-center pb-8">
-            <h2 className="text-[26px] font-semibold text-[#0F172A] tracking-tight">Approval Queue</h2>
-            <p className="mx-auto mt-4 max-w-2xl text-[15px] leading-7 text-[#475569]">
-              Review and manage pending marketplace requests with clarity, speed, and precision.
-            </p>
-            <div className="mt-6 flex flex-col items-center justify-center gap-3 sm:flex-row sm:flex-wrap">
-              <span className="rounded-full bg-[#ECFDF5] px-4 py-2 text-[12px] font-semibold text-[#065F46] shadow-[inset_0_0_0_1px_rgba(4,120,87,0.08)]">
-                {approvalQueueCount} Pending Reviews
-              </span>
-              <span className="rounded-full bg-[#FFFBEB] px-4 py-2 text-[12px] font-semibold text-[#B45309] shadow-[inset_0_0_0_1px_rgba(245,158,11,0.12)]">
-                {awaitingMatchCount} Awaiting Match
-              </span>
-              <span className="rounded-full bg-[#F8FAFC] px-4 py-2 text-[12px] font-semibold text-[#475569] shadow-[inset_0_0_0_1px_rgba(71,113,133,0.08)]">
-                Updated {updatedLabel}
-              </span>
-            </div>
-          </div>
-          <div className="border-t border-[#E5E7EB] pt-6">
-
-          <div
-            className="overflow-x-auto pb-1"
-            style={{ scrollbarWidth: 'thin', scrollbarColor: '#CBD5E1 #F8FAFC' }}
-          >
-            <table className="w-full min-w-[760px] border-separate border-spacing-0">
-              <thead className="border-b border-[#E5E7EB] bg-[#F8FAFC] shadow-sm">
-                <tr>
-                  <th className="w-[18%] px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748B]">Type</th>
-                  <th className="w-[30%] px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748B]">Business</th>
-                  <th className="w-[18%] px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748B]">Submitted</th>
-                  <th className="w-[18%] px-6 py-4 text-left text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748B]">Status</th>
-                  <th className="w-[16%] px-6 py-4 text-right text-[11px] font-semibold uppercase tracking-[0.18em] text-[#64748B]">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#F1F5F9]">
-                {approvalQueue.map((item) => {
-                  const TypeIcon = getTypeIcon(item.type);
-                  const subtitle = getTypeSubtitle(item.type);
-                  return (
-                    <tr
-                      key={item.id}
-                      className="group cursor-pointer transition duration-300 hover:-translate-y-0.5 hover:bg-[#F9FAFB] hover:shadow-[0_10px_30px_rgba(15,23,42,0.08)]"
-                    >
-                      <td className="px-6 py-6 align-top">
-                        <div className="flex items-center gap-3">
-                          <div className="grid h-12 w-12 place-items-center rounded-[18px] bg-[#EEF2FF] text-[#3730A3] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.12)]">
-                            <TypeIcon size={18} strokeWidth={2} />
-                          </div>
-                          <div>
-                            <p className="text-[14px] font-semibold text-[#0F172A]">{item.type}</p>
-                            <span className="inline-flex rounded-full bg-[#F8FAFC] px-2.5 py-1 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#475569] shadow-[inset_0_0_0_1px_rgba(71,113,133,0.08)]">
-                              {item.type}
-                            </span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="px-6 py-6 align-top">
-                        <p className="text-[15px] font-semibold text-[#0F172A] leading-tight">{item.name}</p>
-                        <p className="text-[13px] text-[#64748B] mt-2 truncate max-w-[380px]">{subtitle}</p>
-                      </td>
-                      <td className="px-6 py-6 align-top">
-                        <p className="text-[13px] font-semibold text-[#0F172A]">{item.date}</p>
-                        <p className="mt-1 text-[12px] text-[#64748B]">Submitted</p>
-                      </td>
-                      <td className="px-6 py-6 align-top">
-                        <StatusBadge status={item.status} />
-                      </td>
-                      <td className="px-6 py-6 text-right align-top">
-                        <Link
-                          href={getTypeRoute(item.type)}
-                          className="inline-flex items-center justify-center rounded-full bg-[#0F172A] px-5 py-2.5 text-sm font-semibold text-white transition duration-300 hover:bg-[#111827]"
-                        >
-                          Review
-                        </Link>
-                      </td>
-                    </tr>
-                  );
-                })}
-                {approvalQueue.length === 0 && (
-                  <tr>
-                    <td colSpan="5" className="px-6 py-16 text-center">
-                      <div className="flex flex-col items-center gap-3">
-                        <div className="grid h-12 w-12 place-items-center rounded-full bg-[#ECFDF5] text-[#047857]">
-                          <ShieldCheck size={22} />
-                        </div>
-                        <p className="text-[15px] font-semibold text-[#0F172A]">All caught up</p>
-                        <p className="text-[13px] text-[#64748B]">No pending items in the queue.</p>
-                      </div>
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-        </section>
-      </div>
 
       <section className="mt-20 rounded-[28px] border border-[#EAEFF5] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.08)]">
         <div className="mx-auto max-w-4xl text-center pb-6">

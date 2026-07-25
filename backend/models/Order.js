@@ -71,8 +71,8 @@ const OrderSchema = new mongoose.Schema({
     commissionRate: Number,
     commissionChargedTo: {
         type: String,
-        enum: ['manufacturer', 'wholesaler', 'none'],
-        default: 'manufacturer'
+        enum: ['seller', 'manufacturer', 'wholesaler', 'none'],
+        default: 'seller'
     },
 
     paymentStatus: {

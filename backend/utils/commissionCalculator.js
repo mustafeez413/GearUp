@@ -3,7 +3,7 @@ const Settings = require('../models/Settings');
 const DEFAULTS = {
     commissionEnabled: true,
     platformFeePercentage: 3,
-    commissionChargedTo: 'manufacturer'
+    commissionChargedTo: 'seller'
 };
 
 async function loadCommissionSettings() {
@@ -29,13 +29,7 @@ function splitCommission(itemSubtotal, itemCommission, commissionChargedTo, comm
         return { platformCommission: 0, sellerReceivable: itemSubtotal };
     }
 
-    if (commissionChargedTo === 'wholesaler') {
-        return {
-            platformCommission: itemCommission,
-            sellerReceivable: itemSubtotal
-        };
-    }
-
+    // Commission is always deducted from seller earnings
     return {
         platformCommission: itemCommission,
         sellerReceivable: Math.round((itemSubtotal - itemCommission) * 100) / 100
@@ -43,12 +37,7 @@ function splitCommission(itemSubtotal, itemCommission, commissionChargedTo, comm
 }
 
 function calculateBuyerTotal(subtotal, platformCommissionTotal, settings) {
-    if (!settings?.commissionEnabled || platformCommissionTotal <= 0) {
-        return subtotal;
-    }
-    if (settings.commissionChargedTo === 'wholesaler') {
-        return Math.round((subtotal + platformCommissionTotal) * 100) / 100;
-    }
+    // Buyer total is never increased by commission
     return subtotal;
 }
 

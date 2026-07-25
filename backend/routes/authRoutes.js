@@ -1,5 +1,5 @@
 const express = require('express');
-const { register, login, googleAuth, getUser, getManufacturers, logout, submitVerification, getVerificationDocument, updateCapacity, forgotPassword, resetPassword, changePassword, updateProfile, getCurrentUser, verifyEmail, resendOTP, acceptPolicies, getPayoutSettings, updatePayoutSettings } = require('../controllers/authController');
+const { register, login, googleAuth, completeGoogleRegistration, getUser, getManufacturers, logout, submitVerification, getVerificationDocument, updateCapacity, forgotPassword, resetPassword, changePassword, updateProfile, getCurrentUser, verifyEmail, resendOTP, acceptPolicies, getPayoutSettings, updatePayoutSettings } = require('../controllers/authController');
 const { getSettings } = require('../controllers/adminController');
 const { protect, optionalAuth } = require('../middleware/authMiddleware');
 
@@ -22,6 +22,7 @@ router.get('/verification-document', protect, getVerificationDocument);
 router.put('/capacity', protect, updateCapacity);
 router.post('/login', login);
 router.post('/google', googleAuth);
+router.post('/google/complete-registration', completeGoogleRegistration);
 router.post('/verify-email', verifyEmail);
 router.post('/resend-otp', resendOTP);
 router.get('/logout', logout);

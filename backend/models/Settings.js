@@ -18,8 +18,8 @@ const SettingsSchema = new mongoose.Schema({
     },
     commissionChargedTo: {
         type: String,
-        enum: ['manufacturer', 'wholesaler'],
-        default: 'manufacturer'
+        enum: ['seller', 'manufacturer', 'wholesaler'],
+        default: 'seller'
     },
     refundDeductionPolicy: {
         type: String,

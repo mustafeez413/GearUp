@@ -8,6 +8,7 @@ import ProtectedRoute from '../../components/shared/ProtectedRoute';
 import { Upload, CheckCircle, AlertCircle, Loader2 } from 'lucide-react';
 import { getAllPakistanCities, isRecognizedCity } from '@/lib/pakistanLocations';
 import { getVerificationDisplayState } from '@/lib/verificationStats';
+import { validateBusinessAddress } from '@/lib/registrationValidation';
 
 const PAKISTAN_CITIES = getAllPakistanCities();
 
@@ -78,7 +79,7 @@ const VerifyBusiness = () => {
             else if (value.length < 7 || value.length > 9) error = 'NTN should be 7-9 digits';
         }
         if (name === 'address') {
-            if (!value || !value.trim()) error = 'Business address is required';
+            error = validateBusinessAddress(value);
         }
         if (name === 'phone') {
             if (!value) {
@@ -93,7 +94,7 @@ const VerifyBusiness = () => {
             }
         }
         if (name === 'city') {
-            if (!isRecognizedCity(value)) error = 'Please select a valid city';
+            if (!isRecognizedCity(value)) error = 'Please select a valid city from the supported list (e.g. Rawalpindi, Lahore, Sialkot).';
         }
         return error;
     };

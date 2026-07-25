@@ -237,8 +237,8 @@ exports.updateCommissionSettings = async (req, res, next) => {
             return res.status(400).json({ success: false, error: validationError });
         }
 
-        if (commissionChargedTo !== undefined && !['manufacturer', 'wholesaler'].includes(commissionChargedTo)) {
-            return res.status(400).json({ success: false, error: 'Commission must be charged to manufacturer or wholesaler.' });
+        if (commissionChargedTo !== undefined && !['seller', 'manufacturer', 'wholesaler'].includes(commissionChargedTo)) {
+            return res.status(400).json({ success: false, error: 'Commission must be charged to seller.' });
         }
 
         if (platformFeePercentage !== undefined) settings.platformFeePercentage = nextRate;

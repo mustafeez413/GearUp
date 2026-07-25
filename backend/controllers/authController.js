@@ -54,7 +54,6 @@ exports.register = async (req, res, next) => {
             phone,
             shopNumber,
             street,
-            area,
             city,
             province,
             agreedToTerms,
@@ -92,7 +91,6 @@ exports.register = async (req, res, next) => {
                 phone,
                 shopNumber,
                 street,
-                area,
                 city,
                 province,
                 sellerType: role === 'manufacturer' ? 'manufacturer' : (role === 'wholesaler' ? 'wholesaler' : 'none')
@@ -776,7 +774,7 @@ exports.updateProfile = async (req, res, next) => {
 // Public
 exports.googleAuth = async (req, res, next) => {
     try {
-        const { token, role } = req.body;
+        const { token } = req.body;
 
         if (!token) {
             return res.status(400).json({ success: false, error: 'Google token is required' });
@@ -798,25 +796,96 @@ exports.googleAuth = async (req, res, next) => {
                 user.googleId = googleId;
                 await user.save();
             }
-            sendTokenResponse(user, 200, res);
+            return sendTokenResponse(user, 200, res);
         } else {
-            // New user registration via Google
-            const defaultRole = role || 'wholesaler';
-            user = await User.create({
-                name,
-                email,
-                googleId,
-                authProvider: 'google',
-                role: defaultRole,
-                avatar: picture,
-                isEmailVerified: true,
-                verificationStatus: defaultRole === 'admin' ? 'approved' : 'business_required'
+            // New user registration via Google -> Return google info for completing registration
+            return res.status(200).json({
+                success: true,
+                isNewUser: true,
+                googleData: {
+                    email,
+                    name,
+                    picture,
+                    googleId,
+                    token
+                }
             });
-            sendTokenResponse(user, 201, res);
         }
     } catch (error) {
         console.error('Google Auth Error:', error);
         res.status(400).json({ success: false, error: 'Failed to authenticate with Google' });
+    }
+};
+
+// Complete Google Registration
+// POST /api/auth/google/complete-registration
+// Public
+exports.completeGoogleRegistration = async (req, res, next) => {
+    try {
+        const { token, role, businessName, phone, shopNumber, street, city, province } = req.body;
+
+        if (!token) {
+            return res.status(400).json({ success: false, error: 'Google token is required' });
+        }
+
+        const ticket = await client.verifyIdToken({
+            idToken: token,
+            audience: process.env.GOOGLE_CLIENT_ID || '373271456084-6flk0m1dvv2j8fipt5m787vt5jg8cv2c.apps.googleusercontent.com',
+        });
+        const payload = ticket.getPayload();
+
+        const { sub: googleId, email, name, picture } = payload;
+
+        let user = await User.findOne({ email });
+
+        if (user) {
+            if (!user.googleId) {
+                user.googleId = googleId;
+                await user.save();
+            }
+            return sendTokenResponse(user, 200, res);
+        }
+
+        if (!role || (role !== 'manufacturer' && role !== 'wholesaler')) {
+            return res.status(400).json({ success: false, error: 'Please select a valid business role (Manufacturer or Wholesaler)' });
+        }
+
+        if (!businessName || businessName.trim().length < 2) {
+            return res.status(400).json({ success: false, error: 'Please enter a valid business name' });
+        }
+
+        if (!phone || phone.trim().length < 10) {
+            return res.status(400).json({ success: false, error: 'Please enter a valid mobile number' });
+        }
+
+        if (!city || !province) {
+            return res.status(400).json({ success: false, error: 'Please select a city and province' });
+        }
+
+        user = await User.create({
+            name,
+            email,
+            googleId,
+            authProvider: 'google',
+            role,
+            avatar: picture || '',
+            isEmailVerified: true,
+            verificationStatus: 'business_required',
+            businessDetails: {
+                businessName: businessName.trim(),
+                phone: phone.trim(),
+                shopNumber: (shopNumber || '').trim(),
+                street: (street || '').trim(),
+                city,
+                province,
+                sellerType: role === 'manufacturer' ? 'manufacturer' : 'wholesaler'
+            }
+        });
+
+        sendTokenResponse(user, 201, res);
+    } catch (error) {
+        console.error('Google Complete Registration Error:', error);
+        res.status(400).json({ success: false, error: error.message || 'Failed to complete Google registration' });
     }
 };
 

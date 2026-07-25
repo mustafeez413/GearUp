@@ -3,14 +3,14 @@
 import React, { useEffect, useState } from 'react';
 import { getApiBaseUrl } from '@/lib/api';
 import toast from 'react-hot-toast';
-import { Percent, Building2, Store, Save, ToggleLeft, ToggleRight, Banknote, CheckCircle2 } from 'lucide-react';
+import { Percent, Save, ToggleLeft, ToggleRight, Banknote, CheckCircle2, UserCheck } from 'lucide-react';
 
 const CommissionSettingsCard = ({ totalEarned = 0, onSaved }) => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [commissionEnabled, setCommissionEnabled] = useState(true);
   const [platformFeePercentage, setPlatformFeePercentage] = useState('3');
-  const [commissionChargedTo, setCommissionChargedTo] = useState('manufacturer');
+  const [commissionChargedTo, setCommissionChargedTo] = useState('seller');
 
   useEffect(() => {
     const load = async () => {
@@ -27,7 +27,7 @@ const CommissionSettingsCard = ({ totalEarned = 0, onSaved }) => {
         if (json.success && json.data) {
           setCommissionEnabled(json.data.commissionEnabled ?? true);
           setPlatformFeePercentage(String(json.data.platformFeePercentage ?? 3));
-          setCommissionChargedTo(json.data.commissionChargedTo || 'manufacturer');
+          setCommissionChargedTo('seller');
         } else {
           toast.error(json.error || 'Could not load commission settings');
         }
@@ -59,7 +59,7 @@ const CommissionSettingsCard = ({ totalEarned = 0, onSaved }) => {
         body: JSON.stringify({
           commissionEnabled,
           platformFeePercentage: commissionEnabled ? rate : 0,
-          commissionChargedTo
+          commissionChargedTo: 'seller'
         })
       });
       const json = await res.json();
@@ -84,7 +84,7 @@ const CommissionSettingsCard = ({ totalEarned = 0, onSaved }) => {
     );
   }
 
-  const payerLabel = commissionChargedTo === 'manufacturer' ? 'Manufacturer' : 'Wholesaler';
+  const payerLabel = 'Seller (Deducted from Seller Payout)';
 
   return (
     <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -121,63 +121,34 @@ const CommissionSettingsCard = ({ totalEarned = 0, onSaved }) => {
               Commission rate (%)
             </label>
             <div className="relative max-w-xs">
-              <Percent size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
               <input
                 type="number"
                 min="0.1"
                 step="0.1"
                 value={platformFeePercentage}
                 onChange={(e) => setPlatformFeePercentage(e.target.value)}
-                className="w-full pl-9 pr-4 py-2.5 rounded-[12px] border border-[#E2E8F0] text-[14px] font-semibold text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981]"
+                className="w-full pl-4 pr-9 py-2.5 rounded-[12px] border border-[#E2E8F0] text-[14px] font-semibold text-[#0F172A] focus:outline-none focus:ring-2 focus:ring-[#10B981]/20 focus:border-[#10B981]"
                 placeholder="e.g. 3"
               />
+              <Percent size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[#94A3B8] pointer-events-none" />
             </div>
             <p className="text-[12px] text-[#94A3B8] mt-2">Minimum 0.1% when commission is enabled</p>
           </div>
 
           <div className={commissionEnabled ? '' : 'opacity-50 pointer-events-none'}>
             <p className="text-[12px] font-semibold uppercase tracking-wider text-[#64748B] mb-3">
-              Charge commission from
+              Commission Target
             </p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setCommissionChargedTo('manufacturer')}
-                className={`flex items-center gap-3 rounded-[14px] border p-4 text-left transition-all ${
-                  commissionChargedTo === 'manufacturer'
-                    ? 'border-[#10B981] bg-[rgba(16,185,129,0.06)] shadow-[0_0_0_1px_rgba(16,185,129,0.15)]'
-                    : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
-                }`}
-              >
-                <div className={`grid h-10 w-10 place-items-center rounded-[10px] ${
-                  commissionChargedTo === 'manufacturer' ? 'bg-[#10B981] text-white' : 'bg-[#F8FAFC] text-[#64748B]'
-                }`}>
-                  <Building2 size={18} />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-[#0F172A]">Manufacturer</p>
-                  <p className="text-[12px] text-[#64748B] mt-0.5">Deducted from seller payout</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setCommissionChargedTo('wholesaler')}
-                className={`flex items-center gap-3 rounded-[14px] border p-4 text-left transition-all ${
-                  commissionChargedTo === 'wholesaler'
-                    ? 'border-[#10B981] bg-[rgba(16,185,129,0.06)] shadow-[0_0_0_1px_rgba(16,185,129,0.15)]'
-                    : 'border-[#E2E8F0] bg-white hover:bg-[#F8FAFC]'
-                }`}
-              >
-                <div className={`grid h-10 w-10 place-items-center rounded-[10px] ${
-                  commissionChargedTo === 'wholesaler' ? 'bg-[#10B981] text-white' : 'bg-[#F8FAFC] text-[#64748B]'
-                }`}>
-                  <Store size={18} />
-                </div>
-                <div>
-                  <p className="text-[14px] font-semibold text-[#0F172A]">Wholesaler</p>
-                  <p className="text-[12px] text-[#64748B] mt-0.5">Added to buyer order total</p>
-                </div>
-              </button>
+            <div className="flex items-center gap-3 rounded-[14px] border border-[#10B981] bg-[rgba(16,185,129,0.06)] p-4 shadow-[0_0_0_1px_rgba(16,185,129,0.15)]">
+              <div className="grid h-10 w-10 place-items-center rounded-[10px] bg-[#10B981] text-white shrink-0">
+                <UserCheck size={18} />
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold text-[#0F172A]">Seller</p>
+                <p className="text-[12px] text-[#64748B] mt-0.5">
+                  Commission is deducted automatically from seller earnings upon order settlement (applies to Manufacturer or Wholesaler sellers).
+                </p>
+              </div>
             </div>
           </div>
 

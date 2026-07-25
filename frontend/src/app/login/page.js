@@ -202,6 +202,12 @@ const LoginContent = () => {
                     const data = await response.json();
                     if (!response.ok) throw new Error(data.error || 'Google Sign In failed');
                     
+                    if (data.isNewUser && data.googleData) {
+                      sessionStorage.setItem('googleRegistrationData', JSON.stringify(data.googleData));
+                      router.push('/register?step=google-complete');
+                      return;
+                    }
+
                     await login(data.user, data.token);
 
                     const role = data.user.role;

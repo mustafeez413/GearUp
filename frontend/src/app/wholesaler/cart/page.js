@@ -398,8 +398,8 @@ const WholesalerCartPage = () => {
                             <div className="wallet-card-enterprise relative overflow-hidden group">
                                 <div className="absolute top-0 right-0 w-64 h-64 bg-[#FFFFFF]/10 blur-[80px] -mr-32 -mt-32 rounded-full pointer-events-none"></div>
 
-                                <h2 className="font-sans text-[18px] font-[800] tracking-tight mb-6 flex items-center gap-2">
-                                    <ShoppingCart size={20} /> Order Summary
+                                <h2 className="font-sans text-[18px] font-[800] tracking-tight mb-6 text-white flex items-center gap-2">
+                                    <ShoppingCart size={20} className="text-emerald-400" /> <span className="text-white font-[800]">Order Summary</span>
                                 </h2>
 
                                 <div className="space-y-5">

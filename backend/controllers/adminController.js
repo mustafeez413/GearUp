@@ -62,8 +62,8 @@ exports.updateSettings = async (req, res, next) => {
             return res.status(400).json({ success: false, error: validationError });
         }
 
-        if (commissionChargedTo !== undefined && !['manufacturer', 'wholesaler'].includes(commissionChargedTo)) {
-            return res.status(400).json({ success: false, error: 'Commission must be charged to manufacturer or wholesaler.' });
+        if (commissionChargedTo !== undefined && !['seller', 'manufacturer', 'wholesaler'].includes(commissionChargedTo)) {
+            return res.status(400).json({ success: false, error: 'Commission must be charged to seller.' });
         }
         
         if (platformFeePercentage !== undefined) settings.platformFeePercentage = nextRate;
@@ -375,7 +375,8 @@ exports.getOperationsSummary = async (req, res, next) => {
     try {
         const Order = require('../models/Order');
         const Payout = require('../models/Payout');
-        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
+        const safeMockQuery = { select: () => safeMockQuery, where: () => safeMockQuery, populate: () => safeMockQuery, sort: () => safeMockQuery, lean: () => Promise.resolve([]), exec: () => Promise.resolve([]) };
+        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => safeMockQuery, findOne: () => safeMockQuery, updateMany: () => Promise.resolve({ modifiedCount: 0 }) }; }
         const Dispute = require('../models/Dispute');
         const {
             loadOperationsContext,
@@ -445,7 +446,8 @@ exports.getPayouts = async (req, res, next) => {
     try {
         const Order = require('../models/Order');
         const Payout = require('../models/Payout');
-        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
+        const safeMockQuery = { select: () => safeMockQuery, where: () => safeMockQuery, populate: () => safeMockQuery, sort: () => safeMockQuery, lean: () => Promise.resolve([]), exec: () => Promise.resolve([]) };
+        let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => safeMockQuery, findOne: () => safeMockQuery, updateMany: () => Promise.resolve({ modifiedCount: 0 }) }; }
         const Dispute = require('../models/Dispute');
         const {
             loadOperationsContext,

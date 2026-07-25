@@ -85,7 +85,8 @@ function buildOperationsContext({ disputes = [], refunds = [], escrows = [] } = 
 async function loadOperationsContext() {
     const Dispute = require('../models/Dispute');
     const Refund = require('../models/Refund');
-    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
+    const safeMockQuery = { select: () => safeMockQuery, where: () => safeMockQuery, populate: () => safeMockQuery, sort: () => safeMockQuery, lean: () => Promise.resolve([]), exec: () => Promise.resolve([]) };
+    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => safeMockQuery, findOne: () => safeMockQuery, updateMany: () => Promise.resolve({ modifiedCount: 0 }) }; }
 
     const [disputes, refunds, escrows] = await Promise.all([
         Dispute.find().select('order seller status refundAmount createdAt').lean(),
@@ -309,7 +310,8 @@ function computeEscrowMetrics(escrows = [], disputes = [], walletStats = null, r
 }
 
 async function reconcileEscrowsForRefundedOrders(orders, ctx) {
-    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => ({ lean: () => Promise.resolve([]) }) }; }
+    const safeMockQuery = { select: () => safeMockQuery, where: () => safeMockQuery, populate: () => safeMockQuery, sort: () => safeMockQuery, lean: () => Promise.resolve([]), exec: () => Promise.resolve([]) };
+    let Escrow = null; try { Escrow = require('../models/Escrow'); } catch { Escrow = { find: () => safeMockQuery, findOne: () => safeMockQuery, updateMany: () => Promise.resolve({ modifiedCount: 0 }) }; }
     const refundedOrderIds = buildRefundedOrderIds(orders, ctx);
     if (refundedOrderIds.size === 0) return { updated: 0 };
 

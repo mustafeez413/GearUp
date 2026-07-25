@@ -20,7 +20,6 @@ export const REGISTRATION_ERRORS = {
   phone: 'Please enter a valid Pakistani phone number.',
   shopNumber: 'Please enter a valid shop, house, office, or building number.',
   street: 'Please enter a valid street or road name.',
-  area: 'Please enter a valid area or sector.',
   city: 'Please enter a valid city name.',
   province: 'Please select a province.',
   provinceFirst: 'Please select a province first.',
@@ -315,12 +314,13 @@ export function validateStreet(value) {
   return '';
 }
 
-export function validateArea(value) {
-  const area = sanitizeText(value);
-  if (!area || area.length < 2 || area.length > 100) {
-    return REGISTRATION_ERRORS.area;
+export function validateBusinessAddress(value) {
+  const address = sanitizeText(value);
+  if (!address || address.length < 5 || address.length > 300) {
+    return 'Please enter a valid business address (5–300 characters).';
   }
-  if (containsDangerousInput(area)) return REGISTRATION_ERRORS.security;
+  if (containsDangerousInput(address)) return REGISTRATION_ERRORS.security;
+  if (isGarbageInput(address)) return REGISTRATION_ERRORS.addressInvalid;
   return '';
 }
 
@@ -334,7 +334,7 @@ export function validateCity(value, province = '') {
   }
 
   if (!city || city.length < 2 || city.length > 50 || !CITY_REGEX.test(city)) {
-    return REGISTRATION_ERRORS.city;
+    return 'Please select a valid city from the supported list (e.g. Rawalpindi, Lahore, Sialkot).';
   }
   if (containsDangerousInput(city)) return REGISTRATION_ERRORS.security;
 
@@ -378,9 +378,6 @@ const FIELD_VALIDATORS = {
   confirmPassword: (data) => validateConfirmPassword(data.password, data.confirmPassword),
   businessName: (data) => validateBusinessName(data.businessName),
   phone: (data) => validatePhone(data.phone),
-  shopNumber: (data) => validateShopNumber(data.shopNumber),
-  street: (data) => validateStreet(data.street),
-  area: (data) => validateArea(data.area),
   city: (data) => validateCity(data.city, data.province),
   province: (data) => validateProvince(data.province),
   role: (data) => validateRole(data.role),
@@ -395,9 +392,6 @@ export const REGISTRATION_FIELD_ORDER = [
   'confirmPassword',
   'businessName',
   'phone',
-  'shopNumber',
-  'street',
-  'area',
   'province',
   'city',
   'agreedToTerms',
@@ -435,9 +429,8 @@ export function sanitizeRegistrationPayload(formData) {
     role: formData.role,
     businessName: sanitizeText(formData.businessName),
     phone: normalizePhoneInput(formData.phone),
-    shopNumber: sanitizeText(formData.shopNumber),
-    street: sanitizeText(formData.street),
-    area: sanitizeText(formData.area),
+    shopNumber: sanitizeText(formData.shopNumber || ''),
+    street: sanitizeText(formData.street || ''),
     city: sanitizeText(formData.city),
     province: normalizeProvince(formData.province),
     agreedToTerms: Boolean(formData.agreedToTerms),

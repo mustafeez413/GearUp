@@ -95,6 +95,8 @@ const SearchableCityInput = ({ value, onChange, errorState }) => {
             <input
                 required
                 type="text"
+                autoComplete="off"
+                data-lpignore="true"
                 value={search}
                 onFocus={() => setIsOpen(true)}
                 onChange={(e) => {
@@ -166,7 +168,6 @@ const WholesalerCheckoutPage = () => {
     const [formData, setFormData] = useState({
         shippingAddress: '',
         city: '',
-        area: '',
         postalCode: '',
         contactNumber: '',
         altContactNumber: '',
@@ -224,26 +225,43 @@ const WholesalerCheckoutPage = () => {
             router.replace('/wholesaler/cart');
         }
 
-        // Try load saved address
-        const savedAddress = localStorage.getItem('saved_checkout_address');
-        if (savedAddress) {
-            const parsed = JSON.parse(savedAddress);
-            setFormData(prev => ({
-                ...prev,
-                shippingAddress: parsed.shippingAddress || '',
-                city: parsed.city || '',
-                area: parsed.area || '',
-                postalCode: parsed.postalCode || '',
-                contactNumber: parsed.contactNumber || '',
-                altContactNumber: parsed.altContactNumber || ''
-            }));
-        } else if (user) {
-            setFormData(prev => ({
-                ...prev,
-                shippingAddress: user.businessDetails?.address || '',
-                city: user.businessDetails?.city || '',
-                contactNumber: user.businessDetails?.phone || ''
-            }));
+        // Clean up legacy un-scoped address key if present
+        localStorage.removeItem('saved_checkout_address');
+
+        if (user) {
+            const userId = (user.id || user._id)?.toString();
+            const bd = user.businessDetails || {};
+            const businessAddr = bd.address || bd.businessAddress || [bd.shopNumber, bd.street, bd.city, bd.province].filter(Boolean).join(', ');
+
+            // Load user-scoped saved checkout address if exists
+            const userSavedAddress = userId ? localStorage.getItem(`saved_checkout_address_${userId}`) : null;
+            if (userSavedAddress) {
+                try {
+                    const parsed = JSON.parse(userSavedAddress);
+                    setFormData(prev => ({
+                        ...prev,
+                        shippingAddress: parsed.shippingAddress || businessAddr || '',
+                        city: parsed.city || bd.city || '',
+                        postalCode: parsed.postalCode || '',
+                        contactNumber: parsed.contactNumber || bd.phone || bd.businessPhone || '',
+                        altContactNumber: parsed.altContactNumber || ''
+                    }));
+                } catch {
+                    setFormData(prev => ({
+                        ...prev,
+                        shippingAddress: businessAddr || '',
+                        city: bd.city || '',
+                        contactNumber: bd.phone || bd.businessPhone || ''
+                    }));
+                }
+            } else {
+                setFormData(prev => ({
+                    ...prev,
+                    shippingAddress: businessAddr || '',
+                    city: bd.city || '',
+                    contactNumber: bd.phone || bd.businessPhone || ''
+                }));
+            }
         }
 
         // Fetch platform settings for payment details
@@ -421,6 +439,45 @@ const WholesalerCheckoutPage = () => {
 
             if (paymentResult.paymentIntent.status === 'succeeded') {
                 localStorage.removeItem('wholesaler_cart');
+
+                if (saveAddressChecked) {
+                    const userId = (user?.id || user?._id)?.toString();
+                    if (userId) {
+                        localStorage.setItem(`saved_checkout_address_${userId}`, JSON.stringify({
+                            shippingAddress: formData.shippingAddress,
+                            city: formData.city,
+                            postalCode: formData.postalCode,
+                            contactNumber: formData.contactNumber,
+                            altContactNumber: formData.altContactNumber
+                        }));
+                    }
+
+                    try {
+                        const token = localStorage.getItem('token');
+                        if (token) {
+                            await fetch(`${getApiBaseUrl()}/api/auth/profile`, {
+                                method: 'PUT',
+                                headers: {
+                                    'Content-Type': 'application/json',
+                                    'Authorization': `Bearer ${token}`
+                                },
+                                body: JSON.stringify({
+                                    businessDetails: {
+                                        ...(user?.businessDetails || {}),
+                                        address: formData.shippingAddress,
+                                        businessAddress: formData.shippingAddress,
+                                        city: formData.city,
+                                        phone: formData.contactNumber,
+                                        businessPhone: formData.contactNumber
+                                    }
+                                })
+                            });
+                        }
+                    } catch (profileErr) {
+                        console.error('Failed to update profile with checkout address:', profileErr);
+                    }
+                }
+
                 setSuccess(true);
                 setTimeout(() => {
                     router.push('/wholesaler/orders');
@@ -513,17 +570,19 @@ const WholesalerCheckoutPage = () => {
                         </h3>
 
                         <div className="space-y-4">
-                            {/* Row 1: Shipping Address & City */}
+                            {/* Row 1: Business Address & City */}
                             <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
-                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Shipping Address <span className="text-[#EF4444]">*</span></label>
+                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Business Address <span className="text-[#EF4444]">*</span></label>
                                     <textarea
                                         required
                                         rows={3}
+                                        autoComplete="off"
+                                        data-lpignore="true"
                                         value={formData.shippingAddress}
                                         onChange={(e) => setFormData({ ...formData, shippingAddress: e.target.value })}
                                         className="w-full bg-[#F8FAFC] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm resize-none"
-                                        placeholder="Enter full street address, shop number, or warehouse details"
+                                        placeholder="Registered business address"
                                     />
                                 </div>
                                 <div className="space-y-2">
@@ -536,38 +595,27 @@ const WholesalerCheckoutPage = () => {
                                 </div>
                             </div>
 
-                            {/* Row 2: Area / Sector / Town & Postal Code */}
+                            {/* Row 2: Postal Code & Contact Number */}
                             <div className="grid md:grid-cols-2 gap-6">
-                                <div className="space-y-2">
-                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Area / Sector / Town <span className="text-[#EF4444]">*</span></label>
-                                    <input
-                                        required
-                                        type="text"
-                                        value={formData.area}
-                                        onChange={(e) => setFormData({ ...formData, area: e.target.value })}
-                                        className="w-full bg-[#F8FAFC] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm"
-                                        placeholder="e.g. DHA, Gulberg, Industrial Area"
-                                    />
-                                </div>
                                 <div className="space-y-2">
                                     <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Postal Code (Optional)</label>
                                     <input
                                         type="text"
+                                        autoComplete="off"
+                                        data-lpignore="true"
                                         value={formData.postalCode}
                                         onChange={(e) => setFormData({ ...formData, postalCode: e.target.value.replace(/\D/g, '') })}
                                         className="w-full bg-[#F8FAFC] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm"
                                         placeholder="e.g. 51310"
                                     />
                                 </div>
-                            </div>
-
-                            {/* Row 3: Contact Number & Alternative Phone */}
-                            <div className="grid md:grid-cols-2 gap-6">
                                 <div className="space-y-2">
                                     <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Contact Number <span className="text-[#EF4444]">*</span></label>
                                     <input
                                         required
                                         type="tel"
+                                        autoComplete="off"
+                                        data-lpignore="true"
                                         value={formData.contactNumber}
                                         onChange={handlePhoneChange}
                                         className={`w-full bg-[#F8FAFC] border rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm ${
@@ -581,16 +629,20 @@ const WholesalerCheckoutPage = () => {
                                         </p>
                                     )}
                                 </div>
-                                <div className="space-y-2">
-                                    <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Alternative Number (Optional)</label>
-                                    <input
-                                        type="tel"
-                                        value={formData.altContactNumber}
-                                        onChange={(e) => setFormData({ ...formData, altContactNumber: e.target.value.replace(/[^\d+-]/g, '') })}
-                                        className="w-full bg-[#F8FAFC] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm"
-                                        placeholder="e.g. 0321-7654321"
-                                    />
-                                </div>
+                            </div>
+
+                            {/* Row 3: Alternative Phone */}
+                            <div className="space-y-2">
+                                <label className="font-sans text-[11px] font-[700] text-[#64748B] uppercase tracking-widest ml-1">Alternative Number (Optional)</label>
+                                <input
+                                    type="tel"
+                                    autoComplete="off"
+                                    data-lpignore="true"
+                                    value={formData.altContactNumber}
+                                    onChange={(e) => setFormData({ ...formData, altContactNumber: e.target.value.replace(/[^\d+-]/g, '') })}
+                                    className="w-full bg-[#F8FAFC] border border-[#E5E7EB] rounded-[16px] px-5 py-3.5 font-sans font-[600] text-[14px] text-[#0F172A] focus:border-[#00A878] focus:ring-4 focus:ring-[#00A878]/10 outline-none transition-all text-sm"
+                                    placeholder="e.g. 0321-7654321"
+                                />
                             </div>
 
                             {/* Row 4: Delivery Notes */}
@@ -648,6 +700,7 @@ const WholesalerCheckoutPage = () => {
                                     <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-[16px] px-5 py-4 focus-within:border-[#00A878] focus-within:ring-4 focus-within:ring-[#00A878]/10 transition-all">
                                         <CardElement 
                                             options={{
+                                                disableLink: true,
                                                 style: {
                                                     base: {
                                                         fontSize: '14px',
@@ -679,31 +732,31 @@ const WholesalerCheckoutPage = () => {
                     <div className="bg-gradient-to-br from-[#071A35] to-[#00A878] rounded-[24px] p-6 text-[#FFFFFF] shadow-[0_16px_40px_rgba(0,168,120,0.2)] relative overflow-hidden group">
                         <div className="absolute top-0 right-0 w-48 h-48 bg-[#FFFFFF]/10 blur-[80px] -mr-24 -mt-24 rounded-full"></div>
 
-                        <h2 className="font-sans text-[18px] font-[800] tracking-tight mb-6 text-[#FFFFFF] flex items-center gap-2">
-                            <Zap size={20} /> Order Summary
+                        <h2 className="font-sans text-[18px] font-[800] tracking-tight mb-6 text-white flex items-center gap-2.5 drop-shadow-sm">
+                            <Zap size={20} className="text-emerald-400 fill-emerald-400/20" /> <span className="text-white font-[800]">Order Summary</span>
                         </h2>
 
-                        <div className="space-y-4 mb-6 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/10">
+                        <div className="space-y-4 mb-6 max-h-[220px] overflow-y-auto pr-2 scrollbar-thin scrollbar-thumb-white/20">
                             {cartItems.map((item, i) => (
-                                <div key={i} className="flex justify-between items-start gap-4 pb-4 border-b border-white/5 last:border-0 last:pb-0">
+                                <div key={i} className="flex justify-between items-start gap-4 pb-4 border-b border-white/10 last:border-0 last:pb-0">
                                     <div className="flex-1 min-w-0">
-                                        <div className="font-sans font-[700] text-[#FFFFFF] text-[14px] truncate">{item.name}</div>
-                                        <p className="font-sans text-[11px] font-[600] text-[#FFFFFF]/70 uppercase tracking-widest mt-0.5">{item.quantity} {item.bulkUnit === 'Dozen' ? 'Dozens' : 'Packs'} × PKR {item.price.toLocaleString()}</p>
+                                        <div className="font-sans font-[700] text-white text-[14px] truncate">{item.name}</div>
+                                        <p className="font-sans text-[11px] font-[600] text-white/80 uppercase tracking-widest mt-0.5">{item.quantity} {item.bulkUnit === 'Dozen' ? 'Dozens' : 'Packs'} × PKR {item.price.toLocaleString()}</p>
                                     </div>
-                                    <div className="font-sans font-[700] text-[#FFFFFF] text-[14px] whitespace-nowrap">PKR {(item.price * item.quantity).toLocaleString()}</div>
+                                    <div className="font-sans font-[700] text-white text-[14px] whitespace-nowrap">PKR {(item.price * item.quantity).toLocaleString()}</div>
                                 </div>
                             ))}
                         </div>
 
                         <div className="pt-6 border-t border-white/10 space-y-6">
-                            <div className="flex justify-between items-center pb-4 border-b border-white/5">
-                                <span className="text-[10px] font-sans font-[800] text-[#FFFFFF]/30 uppercase tracking-wider">Estimated Delivery</span>
-                                <span className="text-[10px] font-sans font-[800] text-[#00A878] uppercase tracking-wider">3-5 Business Days</span>
+                            <div className="flex justify-between items-center pb-4 border-b border-white/10">
+                                <span className="text-[11px] font-sans font-[700] text-white/80 uppercase tracking-wider">Estimated Delivery</span>
+                                <span className="text-[11px] font-sans font-[800] text-emerald-300 uppercase tracking-wider">3-5 Business Days</span>
                             </div>
 
                             <div>
-                                <div className="font-sans text-[11px] font-[600] text-[#FFFFFF]/80 uppercase tracking-widest mb-1">Total Payable Amount</div>
-                                <div className="font-sans text-[32px] font-[800] text-[#FFFFFF] tracking-tight leading-none">PKR {totalAmount.toLocaleString()}</div>
+                                <div className="font-sans text-[11px] font-[700] text-white/90 uppercase tracking-widest mb-1">Total Payable Amount</div>
+                                <div className="font-sans text-[34px] font-[800] text-white tracking-tight leading-none drop-shadow-sm">PKR {totalAmount.toLocaleString()}</div>
                             </div>
 
                             <button

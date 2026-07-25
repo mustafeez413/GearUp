@@ -50,7 +50,6 @@ const ERRORS = {
   phone: 'Please enter a valid Pakistani phone number.',
   shopNumber: 'Please enter a valid shop, house, office, or building number.',
   street: 'Please enter a valid street or road name.',
-  area: 'Please enter a valid area or sector.',
   city: 'Please enter a valid city name.',
   province: 'Please select a province.',
   provinceFirst: 'Please select a province first.',
@@ -227,15 +226,6 @@ function validateStreet(value) {
   return '';
 }
 
-function validateArea(value) {
-  const area = sanitizeText(value);
-  if (!area || area.length < 2 || area.length > 100) {
-    return ERRORS.area;
-  }
-  if (containsDangerousInput(area)) return ERRORS.security;
-  return '';
-}
-
 function validateCityProvinceMatch(city, province) {
   const cleanedCity = sanitizeText(city);
   const cleanedProvince = normalizeProvince(province);
@@ -315,7 +305,6 @@ function sanitizeRegistrationPayload(body) {
     phone: normalizePhoneInput(body.phone),
     shopNumber: sanitizeText(body.shopNumber),
     street: sanitizeText(body.street),
-    area: sanitizeText(body.area),
     city: sanitizeText(body.city),
     province,
     agreedToTerms: body.agreedToTerms === true || body.agreedToTerms === 'true',
@@ -331,9 +320,6 @@ function validateRegistrationPayload(body) {
     ['confirmPassword', validateConfirmPassword(sanitized.password, sanitized.confirmPassword)],
     ['businessName', validateBusinessName(sanitized.businessName)],
     ['phone', validatePhone(sanitized.phone)],
-    ['shopNumber', validateShopNumber(sanitized.shopNumber)],
-    ['street', validateStreet(sanitized.street)],
-    ['area', validateArea(sanitized.area)],
     ['province', validateProvince(sanitized.province)],
     ['city', validateCity(sanitized.city, sanitized.province)],
     ['role', validateRole(sanitized.role)],
@@ -362,8 +348,20 @@ function validateRegistrationPayload(body) {
   };
 }
 
+function validateBusinessAddress(value) {
+  const address = sanitizeText(value);
+  if (!address || address.length < 5 || address.length > 300) {
+    return 'Please enter a valid business address (5–300 characters).';
+  }
+  if (containsDangerousInput(address)) return ERRORS.security;
+  if (isGarbageInput(address)) return ERRORS.addressInvalid;
+  return '';
+}
+
 module.exports = {
   validateRegistrationPayload,
   sanitizeRegistrationPayload,
+  validateCity,
+  validateBusinessAddress,
   ERRORS,
 };

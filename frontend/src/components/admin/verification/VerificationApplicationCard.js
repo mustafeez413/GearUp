@@ -16,6 +16,9 @@ import {
   MapPin,
   Hash,
   FileWarning,
+  Globe,
+  Home,
+  Briefcase,
 } from 'lucide-react';
 import {
   openSecureAdminUpload,
@@ -101,6 +104,7 @@ export default function VerificationApplicationCard({
   const confidence = getConfidenceLabel(completeness.percent);
   const businessName = getBusinessName(user);
   const isMfr = user.role === 'manufacturer';
+  const fullAddress = bd.address || bd.businessAddress || [bd.shopNumber, bd.street, bd.city, bd.province].filter(Boolean).join(', ') || '—';
 
   return (
     <article className={`group relative ${cardInteractive} overflow-hidden border-l-4 ${accent}`}>
@@ -186,10 +190,14 @@ export default function VerificationApplicationCard({
         <div className="lg:col-span-2 px-5 py-4 border-b lg:border-b-0 lg:border-r border-[#E2E8F0]">
           <h4 className={`${sectionTitle} mb-3`}>Business Information</h4>
           <div className="space-y-2.5">
-            <DetailCell icon={Mail} label="Email" value={user.email} />
-            <DetailCell icon={Phone} label="Phone" value={bd.phone} />
+            <DetailCell icon={Briefcase} label="Business Name" value={businessName} />
+            <DetailCell icon={isMfr ? Building2 : Store} label="Business Type" value={isMfr ? 'Manufacturer' : 'Wholesaler'} />
+            <DetailCell icon={Home} label="Business Address" value={fullAddress} multiline />
             <DetailCell icon={MapPin} label="City" value={bd.city} />
+            <DetailCell icon={Phone} label="Phone Number" value={bd.phone || bd.businessPhone} />
+            <DetailCell icon={Mail} label="Email" value={user.email} />
             <DetailCell icon={Hash} label="NTN" value={bd.taxId} mono />
+            <DetailCell icon={Globe} label="Website" value={bd.website || user.website} isLink />
           </div>
         </div>
 
@@ -202,14 +210,6 @@ export default function VerificationApplicationCard({
                 <button type="button" onClick={() => onViewDocument(user)} className={btnGhost}>
                   <Eye size={14} />
                   Preview
-                </button>
-                <button
-                  type="button"
-                  onClick={() => doc && openSecureAdminUpload(doc.path)}
-                  className={btnGhost}
-                >
-                  <ExternalLink size={14} />
-                  Open
                 </button>
                 <button
                   type="button"
@@ -429,18 +429,36 @@ function TrustBadge({ item }) {
   );
 }
 
-function DetailCell({ icon: Icon, label, value, mono }) {
+function DetailCell({ icon: Icon, label, value, mono, multiline, isLink }) {
+  const displayVal = value || '—';
+  const href = isLink && value ? (value.startsWith('http') ? value : `https://${value}`) : null;
+
   return (
-    <div className="rounded-[14px] border border-[#E2E8F0] bg-white px-4 py-3.5 shadow-[0_4px_12px_rgba(15,23,42,0.04)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.07)] hover:-translate-y-px transition-all duration-150">
-      <p className="text-[12px] font-semibold uppercase tracking-[0.06em] text-[#64748B] mb-1.5 flex items-center gap-2">
-        <span className="w-6 h-6 rounded-lg bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center shrink-0">
-          <Icon size={12} className="text-[#64748B]" />
+    <div className="rounded-[14px] border border-[#E2E8F0] bg-white px-4 py-3 shadow-[0_4px_12px_rgba(15,23,42,0.04)] hover:shadow-[0_8px_20px_rgba(15,23,42,0.07)] transition-all duration-150">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[#64748B] mb-1 flex items-center gap-1.5">
+        <span className="w-5 h-5 rounded-md bg-[#F8FAFC] border border-[#E2E8F0] flex items-center justify-center shrink-0">
+          <Icon size={11} className="text-[#64748B]" />
         </span>
         {label}
       </p>
-      <p className={`text-[15px] text-[#0B1F3A] font-semibold truncate ${mono ? 'font-mono text-[14px]' : ''}`}>
-        {value || '—'}
-      </p>
+      {href ? (
+        <a
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[14px] text-[#0D9488] hover:underline font-semibold truncate block"
+        >
+          {displayVal}
+        </a>
+      ) : multiline ? (
+        <p className="text-[14px] text-[#0B1F3A] font-semibold leading-snug break-words whitespace-pre-wrap">
+          {displayVal}
+        </p>
+      ) : (
+        <p className={`text-[14px] text-[#0B1F3A] font-semibold truncate ${mono ? 'font-mono text-[13px]' : ''}`}>
+          {displayVal}
+        </p>
+      )}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import React from 'react';
-import { X, Printer, Building, CheckCircle2 } from 'lucide-react';
+import { X, Download, Building, CheckCircle2 } from 'lucide-react';
 import { formatPKR } from '@/lib/financeUtils';
 import { formatMoqDisplay } from '@/utils/moq';
 
@@ -19,13 +19,15 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
 
     const subtotal = filteredItems.reduce((sum, item) => sum + (item.price * item.quantity), 0);
     const commissionRate = Number(order.commissionRate) || 0;
-    const platformFee = isSellerMode
-        ? filteredItems.reduce((sum, item) => {
-            const itemTotal = item.price * item.quantity;
-            return sum + (itemTotal * (commissionRate / 100));
-        }, 0)
-        : (order.platformCommissionTotal || 0);
-    const grandTotal = isSellerMode ? subtotal : (order.totalAmount || subtotal + platformFee);
+    
+    // Commission is calculated only for the seller settlement/invoice (deducted from seller earnings)
+    const platformFee = filteredItems.reduce((sum, item) => {
+        const itemTotal = item.price * item.quantity;
+        return sum + (itemTotal * (commissionRate / 100));
+    }, 0) || (order.platformCommissionTotal || 0);
+
+    const netAmountPayable = Math.max(0, subtotal - platformFee);
+    const buyerGrandTotal = order.totalAmount || subtotal;
 
     const formatDate = (dateStr) => {
         if (!dateStr) return 'N/A';
@@ -45,8 +47,43 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
 
     const invoiceNumber = `INV-${order._id.substring(order._id.length - 8).toUpperCase()}`;
 
-    const handlePrint = () => {
-        window.print();
+    const handleDownload = () => {
+        const element = document.getElementById('invoice-print-area');
+        if (!element) return;
+
+        try {
+            const invoiceHtml = `
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta charset="utf-8">
+                    <title>${invoiceNumber}</title>
+                    <script src="https://cdn.tailwindcss.com"></script>
+                    <style>
+                        body { background: white; color: #0f172a; padding: 24px; font-family: system-ui, -apple-system, sans-serif; }
+                    </style>
+                </head>
+                <body class="bg-white p-6">
+                    <div class="max-w-3xl mx-auto border border-slate-200 p-8 rounded-2xl shadow-sm">
+                        ${element.innerHTML}
+                    </div>
+                </body>
+                </html>
+            `;
+
+            // Download file directly
+            const blob = new Blob([invoiceHtml], { type: 'text/html;charset=utf-8' });
+            const blobUrl = URL.createObjectURL(blob);
+            const downloadLink = document.createElement('a');
+            downloadLink.href = blobUrl;
+            downloadLink.download = `${invoiceNumber}.html`;
+            document.body.appendChild(downloadLink);
+            downloadLink.click();
+            document.body.removeChild(downloadLink);
+            setTimeout(() => URL.revokeObjectURL(blobUrl), 1000);
+        } catch (err) {
+            console.error('Download error:', err);
+        }
     };
 
     return (
@@ -77,10 +114,10 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
                     <div className="flex items-center gap-2">
                         <button
                             type="button"
-                            onClick={handlePrint}
+                            onClick={handleDownload}
                             className="p-2 text-slate-600 hover:text-slate-900 hover:bg-slate-200/50 rounded-xl transition-all flex items-center gap-1.5 font-body font-bold text-xs"
                         >
-                            <Printer size={16} /> Print
+                            <Download size={16} /> Download
                         </button>
                         <button
                             type="button"
@@ -198,20 +235,41 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
                             This invoice reflects your confirmed bulk order on GearUp. Contact support for billing questions.
                         </div>
                         <div className="w-full md:w-64 space-y-2 text-xs font-body font-bold text-slate-600">
-                            <div className="flex justify-between items-center">
-                                <span>Subtotal</span>
-                                <span className="text-slate-900 font-black">{formatPKR(subtotal)}</span>
-                            </div>
-                            {!isSellerMode && platformFee > 0 && (
-                                <div className="flex justify-between items-center">
-                                    <span>Platform Fee ({commissionRate}%)</span>
-                                    <span className="text-slate-900 font-black">{formatPKR(platformFee)}</span>
-                                </div>
+                            {isSellerMode ? (
+                                <>
+                                    <div className="flex justify-between items-center">
+                                        <span>Gross Order Amount</span>
+                                        <span className="text-slate-900 font-black">{formatPKR(subtotal)}</span>
+                                    </div>
+                                    {platformFee > 0 && (
+                                        <div className="flex justify-between items-center text-rose-600 font-bold">
+                                            <span>Marketplace Commission ({commissionRate}%)</span>
+                                            <span className="font-black">-{formatPKR(platformFee)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-sm font-heading font-black text-slate-900">
+                                        <span>Net Amount Payable</span>
+                                        <span className="text-emerald-600">{formatPKR(netAmountPayable)}</span>
+                                    </div>
+                                </>
+                            ) : (
+                                <>
+                                    <div className="flex justify-between items-center">
+                                        <span>Subtotal</span>
+                                        <span className="text-slate-900 font-black">{formatPKR(subtotal)}</span>
+                                    </div>
+                                    {order.shippingCost > 0 && (
+                                        <div className="flex justify-between items-center">
+                                            <span>Shipping</span>
+                                            <span className="text-slate-900 font-black">{formatPKR(order.shippingCost)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-sm font-heading font-black text-slate-900">
+                                        <span>Total</span>
+                                        <span className="text-emerald-600">{formatPKR(buyerGrandTotal)}</span>
+                                    </div>
+                                </>
                             )}
-                            <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-sm font-heading font-black text-slate-900">
-                                <span>Total</span>
-                                <span className="text-emerald-600">{formatPKR(grandTotal)}</span>
-                            </div>
                         </div>
                     </div>
 

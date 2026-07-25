@@ -45,12 +45,12 @@ exports.openChat = async (req, res) => {
             });
         }
 
-        const seller = await User.findById(ownerId).select('role');
-        if (!seller || seller.role !== 'manufacturer') {
+        const seller = await User.findById(ownerId).select('role status');
+        if (!seller || seller.status === 'suspended' || seller.status === 'banned') {
             return res.status(403).json({
                 success: false,
-                error: 'Chat is only available with manufacturer sellers',
-                code: 'CHAT_SELLER_NOT_MANUFACTURER'
+                error: 'Seller user is not available for chat',
+                code: 'CHAT_SELLER_UNAVAILABLE'
             });
         }
 
@@ -88,7 +88,7 @@ exports.openChat = async (req, res) => {
 };
 
 /**
- * GET /api/chats — threads where user is buyer or seller (manufacturer only).
+ * GET /api/chats — threads where user is buyer or seller.
  */
 exports.listChats = async (req, res) => {
     try {
@@ -212,7 +212,8 @@ exports.postMessage = async (req, res) => {
         const productName = (await Product.findById(thread.product).select('name')).name || 'Product';
         const notificationMessage = `New message from ${senderName} about ${productName}`;
         
-        const notificationLink = receiverId === sellerStr ? `/manufacturer/chats/${thread._id}` : `/wholesaler/chats/${thread._id}`;
+        const receiverUser = await User.findById(receiverId).select('role');
+        const notificationLink = receiverUser?.role === 'manufacturer' ? `/manufacturer/chats/${thread._id}` : `/wholesaler/chats/${thread._id}`;
 
         await Notification.create({
             recipient: receiverId,
