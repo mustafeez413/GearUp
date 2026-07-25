@@ -581,7 +581,7 @@ const ManufacturerTransactionsPage = () => {
             </div>
 
             {/* Top KPI Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-5">
                 {[
                     { label: 'Total Stripe Payments', value: formatPKR(totalAmount), icon: CreditCard, color: 'text-blue-600', bg: 'bg-blue-50' },
                     { label: 'Released Earnings', value: formatPKR(releasedAmount), icon: CheckCircle2, color: 'text-emerald-600', bg: 'bg-emerald-50' },
@@ -590,11 +590,19 @@ const ManufacturerTransactionsPage = () => {
                 ].map((kpi, idx) => {
                     const Icon = kpi.icon;
                     return (
-                        <div key={idx} className="bg-white rounded-[1.5rem] p-6 border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] hover:shadow-lg hover:-translate-y-1 transition-all duration-300 group relative overflow-hidden flex flex-col justify-between">
-                            <div className="pt-2">
-                                <h3 className="text-[#64748B] font-bold text-[11px] uppercase tracking-wider mb-1.5">{kpi.label}</h3>
-                                <p className="font-heading text-3xl font-black text-slate-900 tracking-tighter">{kpi.value}</p>
+                        <div 
+                            key={idx} 
+                            className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-300 group flex flex-col justify-between h-full min-w-0"
+                        >
+                            <div className="flex items-center justify-between gap-2 mb-3">
+                                <span className="text-[#64748B] font-bold text-[11px] uppercase tracking-wider truncate">{kpi.label}</span>
+                                <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${kpi.bg}`}>
+                                    <Icon size={18} className={kpi.color} />
+                                </div>
                             </div>
+                            <p className="font-heading text-xl sm:text-2xl xl:text-3xl font-black text-slate-900 tracking-tight truncate">
+                                {kpi.value}
+                            </p>
                         </div>
                     );
                 })}
@@ -628,22 +636,22 @@ const ManufacturerTransactionsPage = () => {
                     </div>
                     
                     {/* Filters */}
-                    <div className="filter-bar-enterprise flex flex-col sm:flex-row sm:flex-wrap items-stretch sm:items-center gap-3">
-                        <div className="relative flex-1 min-w-[240px]">
+                    <div className="filter-bar-enterprise flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full min-w-0 max-w-full overflow-hidden">
+                        <div className="relative flex-1 min-w-0">
                             <Search className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                             <input
                                 type="text"
                                 placeholder="Search transactions..."
                                 value={searchQuery}
                                 onChange={(e) => setSearchQuery(e.target.value)}
-                                className="pl-4 pr-10 search-enterprise py-2.5 h-auto"
+                                className="pl-4 pr-10 search-enterprise py-2.5 h-auto w-full"
                             />
                         </div>
-                        <div className="flex gap-2 flex-1 sm:flex-none">
+                        <div className="flex flex-wrap sm:flex-nowrap gap-2 shrink-0">
                             <select 
                                 value={statusFilter}
                                 onChange={(e) => setStatusFilter(e.target.value)}
-                                className="flex-1 sm:flex-none bg-white border border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold rounded-xl px-4 py-2.5 outline-none cursor-pointer hover:border-slate-300 focus:border-[#00A878] focus:ring-2 focus:ring-[#00A878]/20 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                                className="bg-white border border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold rounded-xl px-3.5 py-2.5 outline-none cursor-pointer hover:border-slate-300 focus:border-[#00A878] focus:ring-2 focus:ring-[#00A878]/20 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)] min-w-[130px]"
                             >
                                 <option value="All">All Statuses</option>
                                 <option value="Completed">Completed</option>
@@ -654,7 +662,7 @@ const ManufacturerTransactionsPage = () => {
                             <select 
                                 value={dateFilter}
                                 onChange={(e) => setDateFilter(e.target.value)}
-                                className="flex-1 sm:flex-none bg-white border border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold rounded-xl px-4 py-2.5 outline-none cursor-pointer hover:border-slate-300 focus:border-[#00A878] focus:ring-2 focus:ring-[#00A878]/20 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)]"
+                                className="bg-white border border-slate-200 text-slate-600 text-[11px] uppercase tracking-wider font-bold rounded-xl px-3.5 py-2.5 outline-none cursor-pointer hover:border-slate-300 focus:border-[#00A878] focus:ring-2 focus:ring-[#00A878]/20 transition-all shadow-[0_1px_2px_rgba(0,0,0,0.02)] min-w-[120px]"
                             >
                                 <option value="All Time">All Time</option>
                                 <option value="Last 7 Days">Last 7 Days</option>
