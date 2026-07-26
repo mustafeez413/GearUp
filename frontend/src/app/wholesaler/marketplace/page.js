@@ -320,7 +320,7 @@ const MarketplacePage = ({ isDashboard = true }) => {
                             price: p.pricePerBulkUnit || 0,
                             bulkUnit: p.bulkUnit || 'Dozen',
                             packSize: normalizeLoadedPackSize(p.bulkUnit || 'Dozen', p.packSize) || 12,
-                            stock: p.stock || 0,
+                            stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0),
                             industry: (p.category || 'sports').toLowerCase(),
                             verified: seller?.businessDetails?.isVerified || seller?.verificationStatus === 'approved' || seller?.verificationStatus === 'verified' || false,
                             sellerRole: seller?.role || 'manufacturer'
@@ -700,6 +700,27 @@ const MarketplacePage = ({ isDashboard = true }) => {
                                 </div>
                             </div>
 
+                            {/* Stock Indicator */}
+                            {(() => {
+                                const stockStatus = product.stock <= 0 ? 'out' : product.stock <= 10 ? 'low' : 'in';
+                                return (
+                                    <div className={`flex items-center gap-2 px-3 py-2 rounded-[10px] mb-4 text-[11px] font-[700] font-sans uppercase tracking-wider ${
+                                        stockStatus === 'out' ? 'bg-[#FEF2F2] text-[#EF4444] border border-[#FECACA]' :
+                                        stockStatus === 'low' ? 'bg-[#FFFBEB] text-[#D97706] border border-[#FDE68A]' :
+                                        'bg-[#ECFDF5] text-[#059669] border border-[#A7F3D0]'
+                                    }`}>
+                                        <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                            stockStatus === 'out' ? 'bg-[#EF4444]' :
+                                            stockStatus === 'low' ? 'bg-[#D97706]' :
+                                            'bg-[#059669] animate-pulse'
+                                        }`}></span>
+                                        {stockStatus === 'out' ? 'Out of Stock' :
+                                         stockStatus === 'low' ? `Low Stock: ${product.stock} ${product.bulkUnit}s` :
+                                         `In Stock: ${product.stock} ${product.bulkUnit}s`}
+                                    </div>
+                                );
+                            })()}
+
                             {/* Interactive triggers */}
                             <div className="space-y-3 shrink-0">
                                 <div className="flex gap-2">
@@ -707,7 +728,8 @@ const MarketplacePage = ({ isDashboard = true }) => {
                                         <button
                                             type="button"
                                             onClick={() => handleAddToCart(product)}
-                                            className="flex-1 flex items-center justify-center gap-2 h-[44px] bg-[#00A878] hover:bg-[#0DBB85] text-[#FFFFFF] rounded-[12px] font-sans font-[700] text-[12px] uppercase tracking-widest transition-all shadow-[0_8px_20px_rgba(0,168,120,0.25)] hover:-translate-y-0.5"
+                                            disabled={product.stock <= 0}
+                                            className={`flex-1 flex items-center justify-center gap-2 h-[44px] rounded-[12px] font-sans font-[700] text-[12px] uppercase tracking-widest transition-all ${product.stock <= 0 ? 'bg-[#E2E8F0] text-[#94A3B8] cursor-not-allowed shadow-none' : 'bg-[#00A878] hover:bg-[#0DBB85] text-[#FFFFFF] shadow-[0_8px_20px_rgba(0,168,120,0.25)] hover:-translate-y-0.5'}`}
                                         >
                                             <ShoppingCart size={16} /> Add to cart
                                         </button>

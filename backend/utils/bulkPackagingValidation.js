@@ -2,6 +2,13 @@
 
 const BULK_UNIT_OPTIONS = ['Dozen', 'Pack', 'Box', 'Carton', 'Unit Set', 'Unit'];
 
+const UNIT_DEFAULT_PACK_SIZES = {
+  Dozen: 12,
+  Pack: 6,
+  Box: 3,
+  Carton: 24,
+};
+
 const DOZEN_PACK_SIZE = 12;
 const MIN_PACK_SIZE = 1;
 const MAX_PACK_SIZE = 999;
@@ -9,6 +16,7 @@ const MAX_PACK_SIZE = 999;
 const MESSAGES = {
   required: 'Units Per Bulk Pack is required.',
   min: 'Units Per Bulk Pack must be greater than zero.',
+  minDefault: 'Value cannot be less than the default quantity for this unit.',
   max: `Units Per Bulk Pack cannot exceed ${MAX_PACK_SIZE}.`,
   dozenExact: 'Dozen pack must contain exactly 12 units.',
   invalidUnit: 'Invalid bulk pack unit type.',
@@ -47,8 +55,9 @@ function validateBulkPackaging(bulkUnit, packSize) {
     return { valid: true, normalizedPackSize: DOZEN_PACK_SIZE };
   }
 
-  if (parsed < MIN_PACK_SIZE) {
-    return { valid: false, error: MESSAGES.min };
+  const defaultMin = UNIT_DEFAULT_PACK_SIZES[bulkUnit] || 1;
+  if (parsed < defaultMin) {
+    return { valid: false, error: MESSAGES.minDefault };
   }
 
   if (parsed > MAX_PACK_SIZE) {
@@ -88,6 +97,7 @@ function applyBulkPackagingToPayload(payload) {
 
 module.exports = {
   BULK_UNIT_OPTIONS,
+  UNIT_DEFAULT_PACK_SIZES,
   DOZEN_PACK_SIZE,
   MIN_PACK_SIZE,
   MAX_PACK_SIZE,

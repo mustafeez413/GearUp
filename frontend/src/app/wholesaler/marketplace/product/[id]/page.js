@@ -83,7 +83,7 @@ const ProductDetailsPage = () => {
                         monthlyCapacity: p.monthlyCapacity || '1,000+ units',
                         exportReady: p.exportReady !== undefined ? p.exportReady : true,
                         capacityIndicator: p.capacityIndicator || 'high',
-                        stock: p.stock || 0
+                        stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0)
                     },
                     specifications: p.specifications || {
                         material: 'Premium Grade English Willow',

@@ -271,11 +271,10 @@ function AnalyticsContent() {
             </div>
 
             {/* KPI Cards / Tabs */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 mb-8">
                 {[
                     { id: 'sales', label: 'Total Sales', value: stats.totalSalesVal, icon: Banknote, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-100', trend: stats.salesChange?.startsWith('-') ? 'down' : 'up', change: stats.salesChange },
-                    { id: 'purchases', label: 'Total Purchases', value: stats.totalPurchasesVal, icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', trend: stats.purchasesChange?.startsWith('-') ? 'down' : 'up', change: stats.purchasesChange },
-                    { id: 'profit', label: 'Gross Profit', value: stats.grossProfitVal, icon: Activity, color: 'text-teal-600', bg: 'bg-teal-50', border: 'border-teal-100', trend: stats.profitChange?.startsWith('-') ? 'down' : 'up', change: stats.profitChange }
+                    { id: 'purchases', label: 'Total Purchases', value: stats.totalPurchasesVal, icon: ShoppingCart, color: 'text-blue-600', bg: 'bg-blue-50', border: 'border-blue-100', trend: stats.purchasesChange?.startsWith('-') ? 'down' : 'up', change: stats.purchasesChange }
                 ].map((kpi) => {
                     const Icon = kpi.icon;
                     const isActive = activeTab === kpi.id;

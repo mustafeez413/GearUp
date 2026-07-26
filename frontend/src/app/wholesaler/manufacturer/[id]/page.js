@@ -81,7 +81,7 @@ const ManufacturerProfilePage = () => {
                     name: p?.name || 'Product',
                     image: resolveProductImageUrl(p?.images?.[0] || null),
                     price: p?.price || 0,
-                    stock: p?.stock || 0,
+                    stock: p?.availableStock !== undefined ? p.availableStock : (p?.stock || 0),
                     moq: p?.minimumOrderQuantity || 1,
                     bulkUnit: p?.bulkUnit || 'Dozen',
                     packSize: normalizeLoadedPackSize(p?.bulkUnit || 'Dozen', p?.packSize) || 12,
@@ -260,7 +260,7 @@ const ManufacturerProfilePage = () => {
                                         <Star size={14} className="fill-emerald-600" /> {asset.rating} Performance Rating
                                     </div>
 
-                                    <div className="grid grid-cols-2 gap-6 mb-8">
+                                    <div className="grid grid-cols-2 gap-6 mb-4">
                                         <div>
                                             <div className="font-body text-[9px] font-black text-slate-300 uppercase tracking-widest mb-1">Valuation</div>
                                             <div className="font-heading font-black text-slate-900 text-xl tracking-tighter italic">PKR {asset.price.toLocaleString()}</div>
@@ -270,6 +270,27 @@ const ManufacturerProfilePage = () => {
                                             <div className="font-heading font-black text-slate-900 text-xl tracking-tighter italic">{asset.deliveryTime}</div>
                                         </div>
                                     </div>
+
+                                    {/* Stock Indicator */}
+                                    {(() => {
+                                        const stockStatus = asset.stock <= 0 ? 'out' : asset.stock <= 10 ? 'low' : 'in';
+                                        return (
+                                            <div className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl mb-6 text-[10px] font-body font-black uppercase tracking-widest ${
+                                                stockStatus === 'out' ? 'bg-red-50 text-red-600 border border-red-200' :
+                                                stockStatus === 'low' ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                                                'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                            }`}>
+                                                <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                                    stockStatus === 'out' ? 'bg-red-500' :
+                                                    stockStatus === 'low' ? 'bg-amber-500' :
+                                                    'bg-emerald-500 animate-pulse'
+                                                }`}></span>
+                                                {stockStatus === 'out' ? 'Out of Stock' :
+                                                 stockStatus === 'low' ? `Low Stock: ${asset.stock} ${asset.bulkUnit}s` :
+                                                 `In Stock: ${asset.stock} ${asset.bulkUnit}s`}
+                                            </div>
+                                        );
+                                    })()}
 
                                     <div className="mt-auto flex gap-3">
                                         <Link

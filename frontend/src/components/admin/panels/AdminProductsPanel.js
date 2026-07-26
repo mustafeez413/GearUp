@@ -97,6 +97,7 @@ export default function AdminProductsPanel({ overrideProducts }) {
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Manufacturer</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Category</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Price</th>
+                <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Stock</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Status</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Placement</th>
               </tr>
@@ -131,6 +132,21 @@ export default function AdminProductsPanel({ overrideProducts }) {
                   <td className="px-6 py-4 font-semibold">{product.manufacturer?.name || product.manufacturerName || '—'}</td>
                   <td className="px-6 py-4 capitalize text-[#475569]">{product.category || '—'}</td>
                   <td className="px-6 py-4 font-bold text-[#10B981]">{formatPKR(product.price || product.basePrice || 0)}</td>
+                  <td className="px-6 py-4 font-semibold text-[#0F172A]">
+                    {(() => {
+                      const avail = product.availableStock !== undefined ? product.availableStock : (product.stock || 0);
+                      const unit = product.bulkUnit || 'Unit';
+                      return (
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
+                          avail <= 0 ? 'bg-red-50 text-red-600 border border-red-200' :
+                          avail <= 10 ? 'bg-amber-50 text-amber-700 border border-amber-200' :
+                          'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        }`}>
+                          {avail} {unit}s
+                        </span>
+                      );
+                    })()}
+                  </td>
                   <td className="px-6 py-4">
                     <StatusBadge status={product.isActive !== false ? 'ACTIVE' : 'PENDING'} text={product.isActive !== false ? 'Active' : 'Hidden'} />
                   </td>
@@ -141,7 +157,7 @@ export default function AdminProductsPanel({ overrideProducts }) {
               ))}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan="6" className="px-6 py-12 text-center text-[#64748B] text-[14px]">
+                  <td colSpan="7" className="px-6 py-12 text-center text-[#64748B] text-[14px]">
                     No products listed on the marketplace yet.
                   </td>
                 </tr>

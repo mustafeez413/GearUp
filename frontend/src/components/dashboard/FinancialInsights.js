@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useMemo } from 'react';
-import { Banknote, ShoppingCart, Activity, ArrowRight } from 'lucide-react';
+import { Banknote, ShoppingCart, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import Skeleton from '@/components/common/Skeleton';
 import { formatPKR, getUserFinancialMetrics } from '@/lib/financeUtils';
@@ -32,28 +32,20 @@ const FinancialInsights = ({ orders = [], user, timeRange, loading = false, refu
                 accent: 'border-t-[#2563eb]',
                 iconBg: 'bg-[#eff6ff] text-[#2563eb]',
                 href: '/manufacturer/analytics?tab=purchases'
-            },
-            {
-                label: 'Gross profit',
-                value: totalSalesVal - totalPurchasesVal,
-                icon: Activity,
-                accent: 'border-t-[#00A878]',
-                iconBg: 'bg-[#E8FFF5] text-[#00A878]',
-                href: '/manufacturer/analytics?tab=profit'
             }
         ];
     }, [orders, timeRange, user, refundRecords]);
 
     if (loading) {
         return (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                {[1, 2, 3].map(i => <Skeleton key={i} variant="stat" />)}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {[1, 2].map(i => <Skeleton key={i} variant="stat" />)}
             </div>
         );
     }
 
     return (
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {kpiData.map((kpi, idx) => {
                 const Icon = kpi.icon;
                 return (

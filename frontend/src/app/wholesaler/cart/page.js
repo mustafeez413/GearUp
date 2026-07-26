@@ -108,7 +108,7 @@ const WholesalerCartPage = () => {
                             price: product.pricePerBulkUnit || 0,
                             category: product.category || 'cricket',
                             quantity: qty,
-                            stock: product.stock || 0,
+                            stock: product.availableStock !== undefined ? product.availableStock : (product.stock || 0),
                             moq: product.minimumOrderQuantity || 1,
                             bulkUnit: product.bulkUnit || 'Dozen',
                             packSize: product.packSize || 1
@@ -338,7 +338,7 @@ const WholesalerCartPage = () => {
                                                         stockStatus === 'low' ? 'bg-[#D97706]' :
                                                         'bg-[#059669] animate-pulse'
                                                     }`}></span>
-                                                    {stockStatus === 'out' ? 'Out of Stock' : stockStatus === 'low' ? 'Low Stock' : 'In Stock'}
+                                                    {stockStatus === 'out' ? 'Out of Stock' : stockStatus === 'low' ? `Low Stock: ${item.stock} ${item.bulkUnit}s` : `In Stock: ${item.stock} ${item.bulkUnit}s`}
                                                 </div>
                                             </div>
                                         </div>
