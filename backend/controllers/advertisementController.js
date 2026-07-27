@@ -687,7 +687,15 @@ exports.approveCampaign = async (req, res) => {
     ad.approvedAt = new Date();
 
     const now = new Date();
-    if (ad.startDate && new Date(ad.startDate) > now) {
+    
+    const isToday = (d1, d2) => 
+      d1.getFullYear() === d2.getFullYear() &&
+      d1.getMonth() === d2.getMonth() &&
+      d1.getDate() === d2.getDate();
+
+    const adStart = ad.startDate ? new Date(ad.startDate) : null;
+
+    if (adStart && !isToday(adStart, now) && adStart > now) {
         ad.status = 'scheduled';
     } else {
         ad.status = 'active';

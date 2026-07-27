@@ -123,7 +123,7 @@ const Sidebar = ({
     }
 
     if (user?.role === 'wholesaler') {
-      return [
+      const wholesalerItems = [
         { label: 'Overview', path: '/wholesaler/dashboard', icon: LayoutDashboard },
         { label: 'Inventory', path: '/manufacturer/products', icon: Package },
         { label: 'Sales Orders', path: '/manufacturer/orders', icon: ShoppingCart, hasNotification: pendingSalesOrders },
@@ -136,6 +136,17 @@ const Sidebar = ({
         { label: 'Support Requests', path: '/wholesaler/support', icon: LifeBuoy },
         { label: 'Analytics', path: '/manufacturer/analytics', icon: BarChart3 },
       ];
+
+      if (AD_SYSTEM_ENABLED) {
+        wholesalerItems.push(
+          { label: 'Create Advertisement', path: '/wholesaler/advertising/create', icon: PlusCircle, section: 'Marketing & Advertising' },
+          { label: 'Active Campaigns', path: '/wholesaler/advertising/campaigns', icon: Megaphone, section: 'Marketing & Advertising' },
+          { label: 'Campaign Analytics', path: '/wholesaler/advertising/analytics', icon: LineChart, section: 'Marketing & Advertising' },
+          { label: 'Billing History', path: '/wholesaler/advertising/billing', icon: Receipt, section: 'Marketing & Advertising' },
+        );
+      }
+
+      return wholesalerItems;
     }
 
     const manufacturerItems = [

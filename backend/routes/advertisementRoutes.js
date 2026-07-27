@@ -59,18 +59,18 @@ router.post('/:id/track/quote', protect, trackQuote);
 
 router.use(protect);
 
-router.get('/mine', authorize('manufacturer'), getMyCampaigns);
-router.get('/billing/history', authorize('manufacturer'), getBillingHistory);
-router.post('/', authorize('manufacturer'), createCampaign);
-router.get('/:id', authorize('admin', 'manufacturer'), getCampaignById);
-router.put('/:id', authorize('manufacturer'), updateCampaign);
-router.post('/:id/checkout', authorize('manufacturer'), createCheckoutSession);
-router.post('/:id/pause', authorize('manufacturer', 'admin'), pauseCampaign);
-router.post('/:id/resume', authorize('manufacturer', 'admin'), resumeCampaign);
-router.post('/:id/cancel', authorize('manufacturer'), cancelCampaign);
-router.delete('/:id', authorize('manufacturer', 'admin'), deleteCampaign);
-router.post('/:id/duplicate', authorize('manufacturer'), duplicateCampaign);
-router.get('/:id/analytics', authorize('manufacturer', 'admin'), getCampaignAnalytics);
+router.get('/mine', authorize('manufacturer', 'wholesaler'), getMyCampaigns);
+router.get('/billing/history', authorize('manufacturer', 'wholesaler'), getBillingHistory);
+router.post('/', authorize('manufacturer', 'wholesaler'), createCampaign);
+router.get('/:id', authorize('admin', 'manufacturer', 'wholesaler'), getCampaignById);
+router.put('/:id', authorize('manufacturer', 'wholesaler'), updateCampaign);
+router.post('/:id/checkout', authorize('manufacturer', 'wholesaler'), createCheckoutSession);
+router.post('/:id/pause', authorize('manufacturer', 'wholesaler', 'admin'), pauseCampaign);
+router.post('/:id/resume', authorize('manufacturer', 'wholesaler', 'admin'), resumeCampaign);
+router.post('/:id/cancel', authorize('manufacturer', 'wholesaler'), cancelCampaign);
+router.delete('/:id', authorize('manufacturer', 'wholesaler', 'admin'), deleteCampaign);
+router.post('/:id/duplicate', authorize('manufacturer', 'wholesaler'), duplicateCampaign);
+router.get('/:id/analytics', authorize('manufacturer', 'wholesaler', 'admin'), getCampaignAnalytics);
 
 router.get('/admin/overview', authorize('admin'), getAdminOverview);
 router.get('/admin/campaigns', authorize('admin'), getAdminCampaigns);
