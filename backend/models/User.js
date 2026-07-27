@@ -149,6 +149,35 @@ const UserSchema = new mongoose.Schema({
             default: ''
         }
     },
+    stripeAccountId: {
+        type: String,
+        default: null
+    },
+    stripeAccountStatus: {
+        type: String,
+        enum: ['Not Connected', 'Pending', 'Verified', 'Restricted', 'Disabled'],
+        default: 'Not Connected'
+    },
+    stripeChargesEnabled: {
+        type: Boolean,
+        default: false
+    },
+    stripePayoutsEnabled: {
+        type: Boolean,
+        default: false
+    },
+    stripeOnboardingCompleted: {
+        type: Boolean,
+        default: false
+    },
+    stripeAccountCreatedAt: {
+        type: Date,
+        default: null
+    },
+    lastStripeSync: {
+        type: Date,
+        default: null
+    },
     verificationStatus: {
         type: String,
         enum: ['pending', 'approved', 'rejected', 'business_required'],

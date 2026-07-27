@@ -117,13 +117,13 @@ exports.handleWebhook = async (req, res) => {
             }
 
             // Check if already processed (idempotency)
-            if (order.isPaymentVerified || ['verified', 'Held', 'Released', 'released', 'held'].includes(order.paymentStatus)) {
-                console.log(`[stripe-webhook] Order ${orderId} is already payment verified/held/released.`);
+            if (order.isPaymentVerified || ['verified', 'paid', 'Paid', 'Payment Verified'].includes(order.paymentStatus)) {
+                console.log(`[stripe-webhook] Order ${orderId} payment is already verified/paid.`);
                 return res.status(200).json({ success: true, message: 'Already processed' });
             }
 
-            // Update order to Held state
-            order.paymentStatus = 'Held';
+            // Update order payment status to Paid
+            order.paymentStatus = 'Paid';
             order.isPaymentVerified = true;
             order.status = 'processing';
             order.stripeTransactionId = paymentIntent.latest_charge || paymentIntent.id;
@@ -312,22 +312,54 @@ exports.handleWebhook = async (req, res) => {
                     console.log(`[stripe-webhook] Order ${orderId} cancelled due to payment failure.`);
                 }
             }
-        } else if (eventType === 'charge.refunded') {
-            const charge = event.data.object;
-            const paymentIntentId = charge.payment_intent;
-
-            if (paymentIntentId) {
-                const order = await Order.findOne({
-                    $or: [
-                        { stripePaymentIntentId: paymentIntentId },
-                        { transactionReference: paymentIntentId }
-                    ]
-                });
-                if (order && order.paymentStatus !== 'refunded') {
-                    const { refundOrderTransactionally } = require('../utils/payoutSync');
-                    await refundOrderTransactionally(order._id, 'Refunded via Stripe dashboard or API');
-                    console.log(`[stripe-webhook] Order ${order._id} successfully refunded.`);
+        } else if (eventType === 'account.updated') {
+            const account = event.data.object;
+            const User = require('../models/User');
+            const stripeConnectService = require('../services/stripeConnectService');
+            const user = await User.findOne({ stripeAccountId: account.id });
+            if (user) {
+                await stripeConnectService.syncAccountStatus(user._id);
+                console.log(`[stripe-webhook] Synced account.updated for seller ${user._id} (${account.id})`);
+            }
+        } else if (eventType === 'transfer.created' || eventType === 'transfer.updated') {
+            const transfer = event.data.object;
+            const payout = await Payout.findOne({ transferId: transfer.id });
+            if (payout) {
+                payout.stripeStatus = transfer.status || 'succeeded';
+                if (payout.status !== 'Released') {
+                    payout.status = 'Released';
+                    payout.releasedAt = payout.releasedAt || new Date();
                 }
+                await payout.save();
+            }
+        } else if (eventType === 'transfer.reversed') {
+            const transfer = event.data.object;
+            const payout = await Payout.findOne({ transferId: transfer.id });
+            if (payout) {
+                payout.status = 'Failed';
+                payout.notes = `Transfer reversed by Stripe: ${transfer.id}`;
+                await payout.save();
+            }
+        } else if (eventType === 'payout.created' || eventType === 'payout.paid' || eventType === 'payout.failed' || eventType === 'payout.canceled') {
+            const stripePayout = event.data.object;
+            console.log(`[stripe-webhook] Payout event ${eventType} for account ${event.account || 'platform'}: ${stripePayout.id}`);
+        } else if (eventType === 'charge.dispute.created' || eventType === 'charge.dispute.updated') {
+            const dispute = event.data.object;
+            const paymentIntentId = dispute.payment_intent;
+            if (paymentIntentId) {
+                await Payout.updateMany(
+                    { paymentIntentId },
+                    { status: 'Held', disputeHold: true, disputeHoldReason: 'Held due to Stripe charge dispute' }
+                );
+            }
+        } else if (eventType === 'charge.dispute.closed') {
+            const dispute = event.data.object;
+            const paymentIntentId = dispute.payment_intent;
+            if (paymentIntentId && dispute.status === 'won') {
+                await Payout.updateMany(
+                    { paymentIntentId, disputeHoldReason: 'Held due to Stripe charge dispute' },
+                    { status: 'Pending', disputeHold: false, disputeHoldReason: '' }
+                );
             }
         }
 

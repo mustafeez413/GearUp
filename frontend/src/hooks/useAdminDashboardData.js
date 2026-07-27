@@ -446,8 +446,8 @@ export default function useAdminDashboardData() {
       monthlyRevenue: percentChange(monthlyRevenue, lastMonthRevenue),
       commissionEarned: percentChange(thisMonthCommission, lastMonthRevenue),
       escrowBalance: percentChange(
-        orders.filter(o => o.paymentStatus === 'Held' || o.paymentStatus === 'Holding').length,
-        orders.filter(o => o.paymentStatus === 'Released').length
+        payoutsList.filter(p => p.status === 'Held').length,
+        payoutsList.filter(p => p.status === 'Released').length
       ),
       pendingPayoutAmount: percentChange(thisMonthPayoutVolume, lastMonthPayoutVolume),
     };

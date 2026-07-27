@@ -77,7 +77,7 @@ const OrderSchema = new mongoose.Schema({
 
     paymentStatus: {
         type: String,
-        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Rejected', 'Refunded', 'pending payment', 'pending approval', 'payment verified', 'rejected', 'refunded', 'pending', 'pending_approval', 'verified', 'Held', 'Released', 'held', 'released'],
+        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Paid', 'Failed', 'Rejected', 'Refunded', 'pending payment', 'pending approval', 'payment verified', 'paid', 'failed', 'rejected', 'refunded', 'pending', 'pending_approval', 'verified', 'Held', 'Released', 'held', 'released'],
         default: 'pending'
     },
     isPaymentVerified: {

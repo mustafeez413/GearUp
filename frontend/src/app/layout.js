@@ -1,14 +1,9 @@
-import { Inter } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/context/AuthContext";
 import { InactivityLogoutWrapper } from "@/components/InactivityLogoutWrapper";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 
-const inter = Inter({
-  variable: "--font-app",
-  subsets: ["latin"],
-  display: "swap",
-});
+const inter = { variable: "font-sans" };
 
 export const metadata = {
   title: "GearUp | Pakistan's Premier B2B Sports Marketplace",

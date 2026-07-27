@@ -801,7 +801,7 @@ const ManufacturerDashboard = () => {
                 }}
             />
 
-            {/* SECTION 3 — SALES & PURCHASE PERFORMANCE */}
+            {/* SECTION 3 — BUSINESS INSIGHTS */}
             <section className="flex flex-col space-y-8 pt-10 dashboard-divider">
                 <div className="flex flex-col gap-2">
                     <div className="flex items-center gap-4">
@@ -810,7 +810,7 @@ const ManufacturerDashboard = () => {
                         </div>
                         <div>
                             <h2 className="text-[32px] font-bold text-[#0F172A] tracking-tight leading-tight">
-                                Sales & Purchase Performance
+                                Business Insights
                             </h2>
                             <p className="text-[15px] text-[#64748B] font-medium mt-1">
                                 Track your sales and purchase trends over time

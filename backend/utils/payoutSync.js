@@ -171,17 +171,20 @@ async function releaseOrderPaymentTransactionally(orderId) {
     try {
         const queryOptions = session ? { session } : {};
 
-        // 1. Update Order paymentStatus to 'Released'
+        // 1. Ensure Order paymentStatus remains 'Paid' (buyer lifecycle)
         const order = await Order.findById(orderId).session(session || null);
         if (order) {
-            order.paymentStatus = 'Released';
-            await order.save(queryOptions);
+            const lowerPayStatus = (order.paymentStatus || '').toLowerCase();
+            if (['released', 'held', 'holding'].includes(lowerPayStatus) || !order.paymentStatus) {
+                order.paymentStatus = 'Paid';
+                await order.save(queryOptions);
+            }
         }
 
-        // 2. Update Payouts to Approved
+        // 2. Update Payouts to Released
         await Payout.updateMany(
-            { order: orderId, status: { $nin: ['Approved', 'Paid', 'Cancelled', 'Refunded'] } },
-            { $set: { status: 'Approved', paymentDate: new Date() } },
+            { order: orderId, status: { $nin: ['Released', 'Cancelled', 'Failed'] } },
+            { $set: { status: 'Released', releasedAt: new Date() } },
             queryOptions
         );
 

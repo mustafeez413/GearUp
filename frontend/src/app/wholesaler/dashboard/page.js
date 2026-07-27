@@ -264,15 +264,6 @@ export default function WholesalerDashboard() {
             icon: Calendar,
             color: 'text-indigo-600 bg-indigo-50 border-indigo-100/60',
             href: '/wholesaler/orders'
-        },
-        {
-            label: 'Pending Payment',
-            value: stats.pendingPayment,
-            change: 'Awaiting verification',
-            trend: 'down',
-            icon: AlertCircle,
-            color: 'text-rose-600 bg-rose-50 border-rose-100/60',
-            href: '/wholesaler/orders'
         }
     ], [stats, purchaseOrders, timeLabel, growthRates]);
 
@@ -503,7 +494,7 @@ export default function WholesalerDashboard() {
                         </div>
                         <div>
                             <h2 className="text-[32px] font-bold text-[#0F172A] tracking-tight leading-tight">
-                                Spend & Supplier Analytics
+                                Business Insights
                             </h2>
                             <p className="text-[15px] text-[#64748B] font-medium mt-1">
                                 Track purchase volume and category mix over time

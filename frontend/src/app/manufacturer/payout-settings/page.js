@@ -13,6 +13,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import StripeConnectPayoutCard from '@/components/payouts/StripeConnectPayoutCard';
 
 const PAKISTAN_BANKS = [
     'Habib Bank Limited (HBL)',
@@ -177,6 +178,9 @@ const PayoutSettingsPage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* Stripe Connect Card & Earnings Section */}
+            <StripeConnectPayoutCard />
 
             <div className="max-w-2xl bg-white rounded-3xl border border-slate-200 shadow-sm overflow-hidden">
                 <div className="p-6 md:p-8 border-b border-slate-100 bg-[#FAFCFD]">

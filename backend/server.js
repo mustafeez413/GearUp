@@ -76,6 +76,7 @@ const startServer = async () => {
         app.use('/api/transactions', transactionRoutes);
 
         app.use('/api/disputes', disputeRoutes);
+        app.use('/api/payouts', require('./routes/payoutRoutes'));
         app.use('/api/ads', require('./routes/ads'));
         app.use('/api/advertisements', require('./routes/advertisementRoutes'));
 

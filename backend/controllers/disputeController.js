@@ -179,22 +179,6 @@ exports.createDispute = async (req, res) => {
             });
         }
 
-        const existingDispute = await Dispute.findOne({
-            order: orderId,
-            buyer: buyerId,
-            seller: targetSellerId,
-            product: productId
-        });
-        if (existingDispute) {
-            const settled = ['refunded', 'rejected', 'resolved'].includes(existingDispute.status);
-            return res.status(400).json({
-                success: false,
-                error: settled
-                    ? 'This item dispute is already settled. You cannot file another dispute for this item.'
-                    : 'A dispute already exists for this item on this order.'
-            });
-        }
-
         const images = [];
         if (evidence) images.push(evidence);
         if (Array.isArray(evidenceImages)) {
@@ -229,6 +213,13 @@ exports.createDispute = async (req, res) => {
                 createdAt: new Date()
             }]
         });
+
+        // Automatically hold payout for this order
+        const Payout = require('../models/Payout');
+        await Payout.updateMany(
+            { order: orderId },
+            { status: 'Held', disputeHold: true, disputeHoldReason: 'Held Due To Active Dispute' }
+        );
 
         await syncOrderItemDisputeStatus(order, productId, 'open');
 
@@ -607,7 +598,7 @@ exports.adminRejectDispute = async (req, res) => {
             const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
             await releaseOrderPaymentTransactionally(order._id);
             order.status = 'completed';
-            order.paymentStatus = 'Released';
+            order.paymentStatus = 'Paid';
             await order.save();
         }
 
