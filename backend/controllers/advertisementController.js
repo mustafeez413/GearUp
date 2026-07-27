@@ -98,7 +98,6 @@ async function getActiveAdsFilter(extra = {}) {
     paymentStatus: 'paid',
     approvalStatus: 'approved',
     status: 'active',
-    startDate: { $lte: now },
     endDate: { $gte: now },
     ...extra
   };
