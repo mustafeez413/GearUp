@@ -688,14 +688,12 @@ exports.approveCampaign = async (req, res) => {
 
     const now = new Date();
     
-    const isToday = (d1, d2) => 
-      d1.getFullYear() === d2.getFullYear() &&
-      d1.getMonth() === d2.getMonth() &&
-      d1.getDate() === d2.getDate();
-
     const adStart = ad.startDate ? new Date(ad.startDate) : null;
 
-    if (adStart && !isToday(adStart, now) && adStart > now) {
+    // Check if adStart is within 24 hours in the future to account for timezone differences
+    const isWithin24Hours = adStart ? (adStart.getTime() - now.getTime()) <= 24 * 60 * 60 * 1000 : false;
+
+    if (adStart && !isWithin24Hours && adStart > now) {
         ad.status = 'scheduled';
     } else {
         ad.status = 'active';
