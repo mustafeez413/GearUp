@@ -46,14 +46,14 @@ export default function HomepageFeaturedSlider() {
 
   // Auto-advance logic
   useEffect(() => {
-    if (ads.length <= 1 || isHovered) return;
+    if (ads.length <= 1) return;
 
     const timerId = setInterval(() => {
       setActiveIndex((prev) => (prev + 1) % ads.length);
     }, 3000);
 
     return () => clearInterval(timerId);
-  }, [ads.length, isHovered]);
+  }, [ads.length, activeIndex]);
 
   // Reset index manually via dots or arrows
   const handleSetIndex = (newIndex) => {
@@ -157,14 +157,10 @@ export default function HomepageFeaturedSlider() {
           {/* Top Edge Progress Bar for Active Slide */}
           {ads.length > 1 && (
             <div className="absolute top-0 left-0 w-full h-[4px] bg-slate-800/40 z-50">
-              {!isHovered ? (
                 <div 
                   key={`progress-${activeIndex}`}
                   className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] animate-progress-fill"
                 />
-              ) : (
-                <div className="h-full bg-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.8)] w-full opacity-30 transition-opacity" />
-              )}
             </div>
           )}
 
