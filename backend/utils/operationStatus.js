@@ -163,6 +163,11 @@ function resolvePayoutStatus(payout, ctx) {
     const orderId = String(order._id || payout.order || '');
     const sellerId = String(payout.seller?._id || payout.seller || '');
 
+    const stored = String(payout.status || '');
+    if (['Released', 'RELEASED'].includes(stored)) return 'Released';
+    if (['Failed'].includes(stored)) return 'Failed';
+    if (['Cancelled', 'Canceled'].includes(stored)) return 'Cancelled';
+
     if (isOrderRefunded(order, ctx)) return PAYOUT_STATUS.REFUNDED;
 
     const escrow = ctx.escrowsByOrderSeller.get(`${orderId}:${sellerId}`);
@@ -179,9 +184,8 @@ function resolvePayoutStatus(payout, ctx) {
         return PAYOUT_STATUS.REFUNDED;
     }
 
-    const stored = String(payout.status || '');
     if (['Approved', 'Paid'].includes(stored)) return PAYOUT_STATUS.APPROVED;
-    if (['Refunded', 'Cancelled'].includes(stored)) return PAYOUT_STATUS.REFUNDED;
+    if (['Refunded'].includes(stored)) return PAYOUT_STATUS.REFUNDED;
 
     const orderStatus = String(order.status || '').toLowerCase();
     const paymentOk =
@@ -358,6 +362,10 @@ async function reconcileAllOperations(orders, payouts, ctx) {
 
 async function reconcilePayoutRecord(payout, ctx) {
     const Payout = require('../models/Payout');
+    const stored = String(payout.status || '');
+    if (['Released', 'RELEASED'].includes(stored)) {
+        return payout;
+    }
     const resolved = resolvePayoutStatus(payout, ctx);
     const amounts = getPayoutDisplayAmounts(payout, resolved, ctx);
     const updates = { status: resolved };

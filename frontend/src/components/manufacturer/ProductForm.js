@@ -37,6 +37,8 @@ import {
 import { formatPKR } from '@/lib/financeUtils';
 import { resolveProductImageUrl } from '@/lib/marketplaceData';
 import { formatMoqDisplay } from '@/utils/moq';
+import { getProductAvailableStock, getProductTotalStock } from '@/utils/inventory';
+import { getSubcategoriesForCategory, isValidCategorySubcategory } from '@/lib/categories';
 import { useAuth } from '@/context/AuthContext';
 import useReadOnlyMode from '@/hooks/useReadOnlyMode';
 import {
@@ -89,14 +91,15 @@ async function uploadProductImageFile(file, token) {
     return data.path;
 }
 
-async function normalizeImagesForSave(images, token) {
-    const image = images?.[0];
-    if (!image) return [];
+async function normalizeImagesForSave(imagesArray, token) {
+    if (!Array.isArray(imagesArray) || imagesArray.length === 0) {
+        return [];
+    }
 
-    if (image.startsWith('data:')) {
-        const blob = await fetch(image).then((res) => res.blob());
-        const file = new File([blob], `product-${Date.now()}.jpg`, { type: blob.type || 'image/jpeg' });
-        return [await uploadProductImageFile(file, token)];
+    const image = imagesArray[0];
+
+    if (image instanceof File) {
+        return [await uploadProductImageFile(image, token)];
     }
 
     return [image];
@@ -115,11 +118,13 @@ const ProductForm = ({ id }) => {
     const [skuManuallyEdited, setSkuManuallyEdited] = useState(false);
     const [isDragging, setIsDragging] = useState(false);
 
+    const initialSubcats = getSubcategoriesForCategory('Cricket');
     const [formData, setFormData] = useState({
         name: '',
         description: '',
         pricePerBulkUnit: '',
         category: 'Cricket',
+        subcategory: initialSubcats[0] || 'Cricket Bat',
         stock: '',
         sku: '',
         minimumOrderQuantity: 3,
@@ -163,6 +168,12 @@ const ProductForm = ({ id }) => {
         }
         if (!formData.description.trim()) {
             errors.description = 'Product specification is required';
+        }
+        if (!formData.category || !formData.category.trim()) {
+            errors.category = 'Main category is required';
+        }
+        if (!formData.subcategory || !formData.subcategory.trim()) {
+            errors.subcategory = 'Subcategory is required';
         }
         if (formData.pricePerBulkUnit === '' || isNaN(formData.pricePerBulkUnit) || Number(formData.pricePerBulkUnit) <= 0) {
             errors.pricePerBulkUnit = 'Price per selected bulk unit must be greater than zero.';
@@ -288,12 +299,19 @@ const ProductForm = ({ id }) => {
             const data = await response.json();
             if (data.success) {
                 const product = data.data;
+                const loadedCategory = product.category || 'Cricket';
+                const subcatOptions = getSubcategoriesForCategory(loadedCategory);
+                const loadedSubcategory = product.subcategory && subcatOptions.includes(product.subcategory)
+                    ? product.subcategory
+                    : (subcatOptions[0] || '');
+
                 setFormData({
                     name: product.name,
                     description: product.description || '',
                     pricePerBulkUnit: product.pricePerBulkUnit,
-                    category: product.category,
-                    stock: product.totalStock != null ? product.totalStock : product.stock,
+                    category: loadedCategory,
+                    subcategory: loadedSubcategory,
+                    stock: getProductTotalStock(product),
                     sku: product.sku || '',
                     minimumOrderQuantity: product.minimumOrderQuantity ? Math.max(3, Number(product.minimumOrderQuantity)) : 3,
                     packSize: normalizeLoadedPackSize(product.bulkUnit || 'Dozen', product.packSize),
@@ -373,9 +391,16 @@ const ProductForm = ({ id }) => {
                 name: value
             }));
         } else if (name === 'category') {
+            const subcats = getSubcategoriesForCategory(value);
             setFormData(prev => ({
                 ...prev,
-                category: value
+                category: value,
+                subcategory: subcats[0] || ''
+            }));
+        } else if (name === 'subcategory') {
+            setFormData(prev => ({
+                ...prev,
+                subcategory: value
             }));
         } else if (name === 'brandName') {
             setBrandName(value);
@@ -497,23 +522,27 @@ const ProductForm = ({ id }) => {
                 return;
             }
 
+            const submitPayload = {
+                ...formData,
+                status: 'published',
+                sku: formData.sku ? String(formData.sku).trim().toUpperCase() : formData.sku,
+                images: imagesToSave,
+                pricePerBulkUnit: finalPricePerBulkUnit,
+                totalStock: Number(formData.stock),
+                stock: Number(formData.stock),
+                minimumOrderQuantity: Number(formData.minimumOrderQuantity),
+                packSize: packagingValidation.normalizedPackSize
+            };
+            delete submitPayload.availableStock;
+            delete submitPayload.reservedStock;
+
             const response = await fetch(url, {
                 method: method,
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify({
-                    ...formData,
-                    status: 'published',
-                    sku: formData.sku ? String(formData.sku).trim().toUpperCase() : formData.sku,
-                    images: imagesToSave,
-                    pricePerBulkUnit: finalPricePerBulkUnit,
-                    totalStock: Number(formData.stock),
-                    stock: Number(formData.stock),
-                    minimumOrderQuantity: Number(formData.minimumOrderQuantity),
-                    packSize: packagingValidation.normalizedPackSize
-                })
+                body: JSON.stringify(submitPayload)
             });
 
             let data = {};
@@ -646,7 +675,7 @@ const ProductForm = ({ id }) => {
                                 )}
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
                                 <div>
                                     <label className="block font-sans text-[13px] font-[600] text-[#334155] mb-1.5">
                                         Brand Name <span className="text-[#00A878]">*</span>
@@ -660,7 +689,7 @@ const ProductForm = ({ id }) => {
                                         placeholder="CA, MBM, HS Sports…"
                                     />
                                     <p className="text-[11px] text-[#94A3B8] mt-1.5 font-[500]">
-                                        Used to build the brand code in your SKU (e.g. CA, MBM, HS).
+                                        Used for SKU brand code.
                                     </p>
                                 </div>
 
@@ -679,8 +708,39 @@ const ProductForm = ({ id }) => {
                                         ))}
                                     </select>
                                     <p className="text-[11px] text-[#94A3B8] mt-1.5 font-[500]">
-                                        Cricket uses prefix <span className="font-mono text-[#64748B]">BAT</span> in the SKU.
+                                        Select main category.
                                     </p>
+                                </div>
+
+                                <div>
+                                    <label className="block font-sans text-[13px] font-[600] text-[#334155] mb-1.5">
+                                        Subcategory <span className="text-[#00A878]">*</span>
+                                    </label>
+                                    <select
+                                        name="subcategory"
+                                        value={formData.subcategory}
+                                        onChange={handleChange}
+                                        disabled={!formData.category}
+                                        className={`w-full h-[52px] px-4 border rounded-[14px] focus:ring-[4px] outline-none transition-all duration-200 font-sans text-[#0F172A] text-[15px] ${!formData.category
+                                            ? 'bg-[#F8FAFC] border-[#E2E8F0] text-[#94A3B8] cursor-not-allowed'
+                                            : validationErrors.subcategory
+                                                ? 'bg-[#FFFFFF] border-[#EF4444] focus:ring-[#EF4444]/10 focus:border-[#EF4444]'
+                                                : 'bg-[#FFFFFF] border-[#CBD5E1] focus:ring-[#00A878]/10 focus:border-[#00A878] hover:border-[#94A3B8] cursor-pointer'
+                                            }`}
+                                    >
+                                        {getSubcategoriesForCategory(formData.category).map(sub => (
+                                            <option key={sub} value={sub}>{sub}</option>
+                                        ))}
+                                    </select>
+                                    {validationErrors.subcategory ? (
+                                        <p className="text-[#EF4444] text-[11px] mt-1.5 font-[500] flex items-center gap-1.5">
+                                            <AlertCircle size={12} /> {validationErrors.subcategory}
+                                        </p>
+                                    ) : (
+                                        <p className="text-[11px] text-[#94A3B8] mt-1.5 font-[500]">
+                                            Filtered for {formData.category}.
+                                        </p>
+                                    )}
                                 </div>
                             </div>
 
@@ -901,7 +961,7 @@ const ProductForm = ({ id }) => {
                         <div className="space-y-3">
                             <div className="flex items-center justify-between">
                                 <span className="text-[10px] bg-[#E8FFF5] text-[#00A878] px-2.5 py-1 rounded-full font-[700] uppercase tracking-widest border border-[#00A878]/20">
-                                    {formData.category}
+                                    {formData.category}{formData.subcategory ? ` • ${formData.subcategory}` : ''}
                                 </span>
                                 {formData.sku && (
                                     <span className="text-[11px] text-[#94A3B8] font-[500] font-mono">SKU: {formData.sku}</span>

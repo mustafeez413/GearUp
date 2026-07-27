@@ -5,6 +5,7 @@ import { getApiBaseUrl } from '@/lib/api';
 import { Package, CheckCircle, Star, Grid } from 'lucide-react';
 import { formatPKR } from '@/lib/financeUtils';
 import { resolveProductImageUrl } from '@/lib/marketplaceData';
+import { getProductAvailableStock } from '@/utils/inventory';
 
 function KpiCard({ icon: Icon, label, value }) {
   return (
@@ -81,10 +82,9 @@ export default function AdminProductsPanel({ overrideProducts }) {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <KpiCard icon={Package} label="Total Products" value={totalProducts} />
         <KpiCard icon={CheckCircle} label="Active Products" value={activeProducts} />
-        <KpiCard icon={Star} label="Sponsored" value={sponsoredProducts} />
         <KpiCard icon={Grid} label="Categories" value={categories} />
       </div>
 
@@ -99,7 +99,6 @@ export default function AdminProductsPanel({ overrideProducts }) {
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Price</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Stock</th>
                 <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Status</th>
-                <th className="px-6 py-4 font-sans font-semibold text-[11px] uppercase tracking-wider text-[#64748B]">Placement</th>
               </tr>
             </thead>
             <tbody className="bg-[#FFFFFF] divide-y divide-[#E2E8F0] font-sans text-[13px] font-medium text-[#0F172A]">
@@ -130,11 +129,11 @@ export default function AdminProductsPanel({ overrideProducts }) {
                     </div>
                   </td>
                   <td className="px-6 py-4 font-semibold">{product.manufacturer?.name || product.manufacturerName || '—'}</td>
-                  <td className="px-6 py-4 capitalize text-[#475569]">{product.category || '—'}</td>
+                  <td className="px-6 py-4 capitalize text-[#475569]">{product.category || '—'}{product.subcategory ? ` / ${product.subcategory}` : ''}</td>
                   <td className="px-6 py-4 font-bold text-[#10B981]">{formatPKR(product.price || product.basePrice || 0)}</td>
                   <td className="px-6 py-4 font-semibold text-[#0F172A]">
                     {(() => {
-                      const avail = product.availableStock !== undefined ? product.availableStock : (product.stock || 0);
+                      const avail = getProductAvailableStock(product);
                       const unit = product.bulkUnit || 'Unit';
                       return (
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${
@@ -150,14 +149,11 @@ export default function AdminProductsPanel({ overrideProducts }) {
                   <td className="px-6 py-4">
                     <StatusBadge status={product.isActive !== false ? 'ACTIVE' : 'PENDING'} text={product.isActive !== false ? 'Active' : 'Hidden'} />
                   </td>
-                  <td className="px-6 py-4">
-                    <SponsoredBadge isSponsored={product.isSponsored} />
-                  </td>
                 </tr>
               ))}
               {products.length === 0 && (
                 <tr>
-                  <td colSpan="7" className="px-6 py-12 text-center text-[#64748B] text-[14px]">
+                  <td colSpan="6" className="px-6 py-12 text-center text-[#64748B] text-[14px]">
                     No products listed on the marketplace yet.
                   </td>
                 </tr>

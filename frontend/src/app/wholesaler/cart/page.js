@@ -21,9 +21,14 @@ import {
 } from 'lucide-react';
 
 import useReadOnlyMode from '@/hooks/useReadOnlyMode';
+import { getProductAvailableStock } from '@/utils/inventory';
+import { useAuth } from '@/context/AuthContext';
+import { isApprovedVerification } from '@/lib/verificationStats';
 
 const WholesalerCartPage = () => {
     const router = useRouter();
+    const { user } = useAuth();
+    const isVerified = isApprovedVerification(user);
     const { isReadOnlyMode, guardAction } = useReadOnlyMode();
     const searchParams = useSearchParams();
 
@@ -107,8 +112,9 @@ const WholesalerCartPage = () => {
                             manufacturerId: product.seller?._id || product.seller,
                             price: product.pricePerBulkUnit || 0,
                             category: product.category || 'cricket',
+                            subcategory: product.subcategory || '',
                             quantity: qty,
-                            stock: product.availableStock !== undefined ? product.availableStock : (product.stock || 0),
+                            stock: getProductAvailableStock(product),
                             moq: product.minimumOrderQuantity || 1,
                             bulkUnit: product.bulkUnit || 'Dozen',
                             packSize: product.packSize || 1
@@ -184,27 +190,23 @@ const WholesalerCartPage = () => {
     const totals = useMemo(() => {
         let totalBase = 0;
         let totalCommission = 0;
-        let totalAmount = 0;
         const commissionRate = commissionPolicy.commissionEnabled
             ? (Number(commissionPolicy.platformFeePercentage) || 0) / 100
             : 0;
-        const buyerPaysCommission =
-            commissionPolicy.commissionEnabled && commissionPolicy.commissionChargedTo === 'wholesaler';
 
         cartItems.forEach(item => {
             const subtotal = item.price * item.quantity;
             const commission = subtotal * commissionRate;
             totalBase += subtotal;
             totalCommission += commission;
-            totalAmount += buyerPaysCommission ? subtotal + commission : subtotal;
         });
 
         return {
             totalBase,
             totalCommission,
-            totalAmount,
+            totalAmount: totalBase,
             itemCount: cartItems.length,
-            buyerPaysCommission,
+            buyerPaysCommission: false,
             commissionEnabled: commissionPolicy.commissionEnabled,
             commissionRate: commissionPolicy.platformFeePercentage
         };
@@ -430,16 +432,26 @@ const WholesalerCartPage = () => {
                                 <button
                                     onClick={() => {
                                         if (!guardAction()) return;
+                                        if (!isVerified) {
+                                            router.push('/wholesaler/settings');
+                                            return;
+                                        }
                                         router.push('/wholesaler/orders/checkout');
                                     }}
-                                    disabled={hasErrors || isReadOnlyMode}
-                                    className={`mt-8 w-full h-[56px] rounded-[14px] font-sans font-[800] text-[13px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 group relative overflow-hidden ${hasErrors || isReadOnlyMode
+                                    disabled={hasErrors || isReadOnlyMode || !isVerified}
+                                    className={`mt-8 w-full h-[56px] rounded-[14px] font-sans font-[800] text-[13px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 group relative overflow-hidden ${hasErrors || isReadOnlyMode || !isVerified
                                         ? 'bg-[#FFFFFF]/10 text-[#FFFFFF]/50 cursor-not-allowed backdrop-blur-sm'
                                         : 'bg-[#FFFFFF] text-[#071A35] hover:bg-[#F8FAFC] shadow-[0_0_20px_rgba(255,255,255,0.3)] hover:-translate-y-1'
                                         }`}
                                 >
-                                    Proceed to Checkout <ArrowRight size={16} className={hasErrors ? '' : 'group-hover:translate-x-1.5 transition-transform'} />
+                                    Proceed to Checkout <ArrowRight size={16} className={hasErrors || !isVerified ? '' : 'group-hover:translate-x-1.5 transition-transform'} />
                                 </button>
+
+                                {!isVerified && (
+                                    <p className="mt-4 text-center text-[11px] font-sans font-[700] text-[#F59E0B] uppercase tracking-widest bg-[#FFFFFF]/95 py-2.5 rounded-[12px] shadow-sm">
+                                        Business verification required to checkout
+                                    </p>
+                                )}
 
                                 {hasErrors && (
                                     <p className="mt-4 text-center text-[11px] font-sans font-[700] text-[#EF4444] uppercase tracking-widest bg-[#FFFFFF]/95 py-2.5 rounded-[12px] shadow-sm">

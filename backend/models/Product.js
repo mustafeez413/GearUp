@@ -27,6 +27,12 @@ const ProductSchema = new mongoose.Schema({
         type: String,
         default: 'General'
     },
+    subcategory: {
+        type: String,
+        required: false,
+        trim: true,
+        default: ''
+    },
     stock: {
         type: Number,
         default: 0
@@ -68,6 +74,10 @@ const ProductSchema = new mongoose.Schema({
     isDeleted: {
         type: Boolean,
         default: false
+    },
+    isActive: {
+        type: Boolean,
+        default: true
     },
     deletedAt: {
         type: Date,
@@ -131,8 +141,6 @@ ProductSchema.pre('save', function syncInventoryStock(next) {
         if (this.totalStock === undefined || this.totalStock === null) {
             this.totalStock = Math.max(0, this.stock || 0);
         }
-    } else if (this.isModified('stock') && !this.isModified('totalStock')) {
-        this.totalStock = Math.max(0, this.stock || 0);
     }
 
     this.totalStock = Math.max(0, this.totalStock || 0);

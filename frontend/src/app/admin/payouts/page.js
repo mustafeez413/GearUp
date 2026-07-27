@@ -25,11 +25,11 @@ import { formatPKR } from '@/lib/financeUtils';
 const normalizeStatus = (status) => {
     if (!status) return 'Pending';
     const s = String(status).trim().toLowerCase();
-    if (s === 'approved' || s === 'pending') return 'Pending';
+    if (s === 'released' || s === 'paid' || s === 'completed' || s === 'paid out') return 'Released';
     if (s === 'holding' || s === 'held') return 'Held';
-    if (s === 'released' || s === 'paid') return 'Released';
     if (s === 'failed') return 'Failed';
     if (s === 'cancelled' || s === 'canceled' || s === 'refunded') return 'Cancelled';
+    if (s === 'approved' || s === 'pending') return 'Pending';
     return 'Pending';
 };
 

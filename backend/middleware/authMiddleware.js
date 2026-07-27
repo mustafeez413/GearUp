@@ -100,3 +100,27 @@ exports.authorize = (...roles) => {
         next();
     };
 };
+
+// Ensure user is business-verified for selling or purchasing
+exports.requireVerifiedBusiness = (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, error: 'Not authorized to access this route' });
+    }
+
+    if (req.user.role === 'admin') {
+        return next();
+    }
+
+    const status = String(req.user.verificationStatus || '').trim().toLowerCase();
+    const isVerified = status === 'approved' || status === 'verified' || req.user.businessDetails?.isVerified === true;
+
+    if (!isVerified) {
+        return res.status(403).json({
+            success: false,
+            error: 'BUSINESS_VERIFICATION_REQUIRED',
+            message: 'Business verification is required to buy or sell on GearUp. Please complete your business verification in Settings.'
+        });
+    }
+
+    next();
+};

@@ -22,6 +22,7 @@ import {
     Shield,
     Sparkles
 } from 'lucide-react';
+import { getProductAvailableStock } from '@/utils/inventory';
 import PageShell from '@/components/dashboard/PageShell';
 import PageHeader from '@/components/dashboard/PageHeader';
 import { useAuth } from '@/context/AuthContext';
@@ -320,7 +321,9 @@ const MarketplacePage = ({ isDashboard = true }) => {
                             price: p.pricePerBulkUnit || 0,
                             bulkUnit: p.bulkUnit || 'Dozen',
                             packSize: normalizeLoadedPackSize(p.bulkUnit || 'Dozen', p.packSize) || 12,
-                            stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0),
+                            stock: getProductAvailableStock(p),
+                            category: p.category || 'General',
+                            subcategory: p.subcategory || '',
                             industry: (p.category || 'sports').toLowerCase(),
                             verified: seller?.businessDetails?.isVerified || seller?.verificationStatus === 'approved' || seller?.verificationStatus === 'verified' || false,
                             sellerRole: seller?.role || 'manufacturer'
@@ -657,7 +660,7 @@ const MarketplacePage = ({ isDashboard = true }) => {
                                     </div>
                                 )}
                                 <div className={`px-2.5 py-1 backdrop-blur-sm rounded-full text-[10px] font-[700] uppercase tracking-widest shadow-sm ${product.sponsored ? 'bg-amber-100/90 text-amber-900 border border-amber-200' : 'bg-[#FFFFFF]/95 text-[#0F172A] border border-[#E5E7EB]'}`}>
-                                    {product.industry}
+                                    {product.category || product.industry}{product.subcategory ? ` • ${product.subcategory}` : ''}
                                 </div>
                             </div>
                         </div>

@@ -56,6 +56,7 @@ export default function WholesalerDashboard() {
 
     const [orders, setOrders] = useState([]);
     const [marketProducts, setMarketProducts] = useState([]);
+    const [inventoryProducts, setInventoryProducts] = useState([]);
     const [loading, setLoading] = useState(true);
     const [openIssueCount, setOpenIssueCount] = useState(0);
     const [refundRecords, setRefundRecords] = useState([]);
@@ -67,20 +68,23 @@ export default function WholesalerDashboard() {
             const headers = { Authorization: `Bearer ${token}` };
             const base = getApiBaseUrl();
 
-            const [ordersRes, productsRes, mineDisputesRes, sellerDisputesRes] = await Promise.all([
+            const [ordersRes, productsRes, inventoryRes, mineDisputesRes, sellerDisputesRes] = await Promise.all([
                 fetch(`${base}/api/orders`, { headers }),
                 fetch(`${base}/api/products`, { headers }),
+                fetch(`${base}/api/products?scope=inventory`, { headers }),
                 fetch(`${base}/api/disputes/mine`, { headers }),
                 fetch(`${base}/api/disputes/seller`, { headers }),
             ]);
 
             const ordersData = await ordersRes.json();
             const productsData = await productsRes.json();
+            const inventoryData = await inventoryRes.json();
             const disputesData = await mineDisputesRes.json();
             const sellerDisputesData = await sellerDisputesRes.json();
 
             if (ordersData.success) setOrders(ordersData.data || []);
             if (productsData.success) setMarketProducts(productsData.data || []);
+            if (inventoryData.success) setInventoryProducts(inventoryData.data || []);
 
             const allDisputes = [
                 ...(disputesData.success ? disputesData.data || [] : []),
@@ -271,12 +275,23 @@ export default function WholesalerDashboard() {
         const fromOrders = [];
         purchaseOrders.forEach((o) => {
             (o.items || []).forEach((item) => {
-                for (let i = 0; i < (item.quantity || 1); i++) {
-                    fromOrders.push({ category: item.product?.category || item.category || 'Other' });
+                const prodId = String(item.product?._id || item.product || '');
+                const foundProd = marketProducts.find(p => String(p._id || p.id) === prodId);
+                const category = item.category || item.product?.category || foundProd?.category;
+
+                if (category && category.toLowerCase() !== 'other') {
+                    const qty = Number(item.quantity) || 1;
+                    for (let i = 0; i < qty; i++) {
+                        fromOrders.push({ category });
+                    }
                 }
             });
         });
-        return fromOrders.length > 0 ? fromOrders : marketProducts;
+
+        if (fromOrders.length > 0) return fromOrders;
+
+        // Fallback to marketplace catalog products to show real category shares
+        return marketProducts.filter(p => p.category && p.category.toLowerCase() !== 'other');
     }, [purchaseOrders, marketProducts]);
 
     const recentPurchases = useMemo(() => {
@@ -339,32 +354,14 @@ export default function WholesalerDashboard() {
             });
     }, [purchaseOrders]);
 
-    // Recent Bulk Orders — same purchase orders but formatted for the "Bulk Orders" view
-    // Shows the buyer's name (this wholesaler) and the supplier in a sales-style table
+    // Recent Bulk Orders — sales orders placed to this wholesaler by buyers
     const recentBulkOrders = useMemo(() => {
-        if (purchaseOrders.length === 0) return [];
-        return [...purchaseOrders]
+        if (salesOrders.length === 0) return [];
+        return [...salesOrders]
             .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
             .slice(0, 5)
             .map((o) => {
-                // For bulk orders view, show the supplier/seller as the "buyer" column
-                const firstSeller = o.items?.[0]?.seller;
-                const supplierName =
-                    (typeof firstSeller === 'object' && firstSeller !== null)
-                        ? (firstSeller.businessDetails?.businessName || firstSeller.name)
-                        : null;
-                const mfgName =
-                    (typeof o.manufacturer === 'object' && o.manufacturer !== null)
-                        ? (o.manufacturer.businessDetails?.businessName || o.manufacturer.name)
-                        : null;
-                const sellerStatObj = o.sellerStats?.[0]?.seller;
-                const statName =
-                    (typeof sellerStatObj === 'object' && sellerStatObj !== null)
-                        ? (sellerStatObj.businessDetails?.businessName || sellerStatObj.name)
-                        : null;
-                const resolvedSupplier = supplierName || mfgName || statName || 'Unknown Supplier';
-
-                // Build descriptive product string
+                const buyerName = o.buyerName || o.buyer?.name || o.buyer?.businessName || o.shippingAddress?.fullName || 'Wholesale Buyer';
                 const items = o.items || [];
                 let productDisplay;
                 if (items.length === 0) {
@@ -391,14 +388,14 @@ export default function WholesalerDashboard() {
                 return {
                     id: o._id.slice(-8).toUpperCase(),
                     fullId: o._id,
-                    buyer: resolvedSupplier,
+                    buyer: buyerName,
                     items: productDisplay,
                     amount: o.totalAmount || 0,
                     status: o.status || 'pending',
                     date: o.createdAt || new Date()
                 };
             });
-    }, [purchaseOrders]);
+    }, [salesOrders]);
 
     if (loading && orders.length === 0) {
         return (
@@ -494,10 +491,10 @@ export default function WholesalerDashboard() {
                         </div>
                         <div>
                             <h2 className="text-[32px] font-bold text-[#0F172A] tracking-tight leading-tight">
-                                Business Insights
+                                Analytics & Performance Insights
                             </h2>
                             <p className="text-[15px] text-[#64748B] font-medium mt-1">
-                                Track purchase volume and category mix over time
+                                Track procurement trends, inventory category distribution, and financial performance over time
                             </p>
                         </div>
                     </div>
@@ -515,7 +512,7 @@ export default function WholesalerDashboard() {
                     </div>
                     <div className="xl:col-span-1 min-w-0">
                         <CategoryShareChart
-                            products={chartProducts}
+                            products={inventoryProducts}
                             loading={loading || filtering}
                         />
                     </div>

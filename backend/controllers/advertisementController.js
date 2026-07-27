@@ -491,6 +491,13 @@ exports.getSponsoredProducts = async (req, res) => {
       Advertisement.find(filter).sort({ rankScore: -1, createdAt: -1 }).limit(Number(limit) * 3)
     );
 
+    // Filter out ads where product was deleted or deactivated
+    ads = ads.filter(ad => {
+      if (!ad.productId) return false;
+      if (ad.productId.isDeleted || ad.productId.isActive === false) return false;
+      return true;
+    });
+
     if (category && category !== 'all') {
       ads = ads.filter((ad) => {
         const cat = (ad.productId?.category || '').toLowerCase();
@@ -526,6 +533,12 @@ exports.getRecommendedSponsored = async (req, res) => {
     let ads = await populateAdQuery(
       Advertisement.find(filter).sort({ rankScore: -1 }).limit(limit * 3)
     );
+
+    ads = ads.filter(ad => {
+      if (!ad.productId) return false;
+      if (ad.productId.isDeleted || ad.productId.isActive === false) return false;
+      return true;
+    });
 
     ads = ads.slice(0, limit);
     res.json({ success: true, data: ads.map(serializeSponsoredAd) });

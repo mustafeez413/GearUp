@@ -113,11 +113,10 @@ export default function PurchasesPage() {
                 </div>
 
                 {/* KPI Cards */}
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-2">
                     {[
                         { label: 'Total Spent', value: formatPKR(stats.totalSpent), icon: ShoppingCart, color: 'text-blue-700', bg: 'bg-blue-100' },
                         { label: 'Total Purchases', value: stats.totalPurchases, icon: ShoppingBag, color: 'text-indigo-700', bg: 'bg-indigo-100' },
-                        { label: 'Pending Orders', value: stats.pendingPurchases, icon: Clock, color: 'text-amber-700', bg: 'bg-amber-100' },
                         { label: 'Active Suppliers', value: stats.uniqueSuppliers, icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-100' }
                     ].map((stat, idx) => (
                         <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-md transition-all duration-300 group hover:-translate-y-1">

@@ -36,6 +36,16 @@ function logInventoryAudit(details) {
     );
 }
 
+function resolveProductTotalStock(product) {
+    if (!product) return 0;
+    if (product.totalStock != null && !isNaN(product.totalStock)) {
+        return Math.max(0, Number(product.totalStock) || 0);
+    }
+    const stockVal = Math.max(0, Number(product.stock) || 0);
+    const reservedVal = Math.max(0, Number(product.reservedStock) || 0);
+    return stockVal + reservedVal;
+}
+
 async function reserveStock(productId, quantity, orderId, userId) {
     const qty = parseInt(quantity, 10);
     if (isNaN(qty) || qty <= 0) return null;
@@ -44,7 +54,7 @@ async function reserveStock(productId, quantity, orderId, userId) {
     if (!product) throw new Error('Product not found for stock reservation.');
     if (product.isDeleted) throw new Error(`Product ${product.name} is no longer available.`);
 
-    const currentTotal = product.totalStock != null ? product.totalStock : (product.stock || 0);
+    const currentTotal = resolveProductTotalStock(product);
     const currentReserved = product.reservedStock || 0;
     const currentAvailable = Math.max(0, currentTotal - currentReserved);
 
@@ -122,7 +132,7 @@ async function shipStock(productId, quantity, orderId, userId) {
     const product = await Product.findById(productId);
     if (!product) return null;
 
-    const prevTotal = product.totalStock != null ? product.totalStock : (product.stock || 0);
+    const prevTotal = resolveProductTotalStock(product);
     const prevReserved = product.reservedStock || 0;
     const prevAvailable = product.availableStock != null ? product.availableStock : Math.max(0, prevTotal - prevReserved);
 
@@ -173,7 +183,7 @@ async function releaseReservedStock(productId, quantity, orderId, userId, action
     const product = await Product.findById(productId);
     if (!product) return null;
 
-    const prevTotal = product.totalStock != null ? product.totalStock : (product.stock || 0);
+    const prevTotal = resolveProductTotalStock(product);
     const prevReserved = product.reservedStock || 0;
     const prevAvailable = product.availableStock != null ? product.availableStock : Math.max(0, prevTotal - prevReserved);
 
@@ -229,7 +239,7 @@ async function handleReturnedStock(productId, quantity, orderId, userId, passedI
     const product = await Product.findById(productId);
     if (!product) return null;
 
-    const prevTotal = product.totalStock != null ? product.totalStock : (product.stock || 0);
+    const prevTotal = resolveProductTotalStock(product);
     const prevReserved = product.reservedStock || 0;
     const prevAvailable = product.availableStock != null ? product.availableStock : Math.max(0, prevTotal - prevReserved);
 
@@ -289,13 +299,14 @@ async function adjustStock(productId, newTotalStock, userId, remarks = 'Restock'
     const product = await Product.findById(productId);
     if (!product) return null;
 
-    const prevTotal = product.totalStock != null ? product.totalStock : (product.stock || 0);
+    const prevTotal = resolveProductTotalStock(product);
     const prevReserved = product.reservedStock || 0;
     const prevAvailable = product.availableStock != null ? product.availableStock : Math.max(0, prevTotal - prevReserved);
 
     const delta = total - prevTotal;
 
     product.totalStock = total;
+    product.reservedStock = Math.min(prevReserved, total);
     product.availableStock = Math.max(0, product.totalStock - product.reservedStock);
     product.set('stock', product.availableStock, { merge: true });
 

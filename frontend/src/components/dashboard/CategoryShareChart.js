@@ -10,26 +10,32 @@ const COLORS = ['#0EA5E9', '#00A878', '#8B5CF6', '#F59E0B', '#EC4899'];
 const CategoryShareChart = ({ products = [], loading = false }) => {
 
     const chartData = useMemo(() => {
+        if (!products || products.length === 0) return [];
+
         const categoryTotals = {};
         let totalCount = 0;
 
         products.forEach(p => {
-            const cat = p.category || 'Other';
-            if (!categoryTotals[cat]) categoryTotals[cat] = 0;
-            categoryTotals[cat] += 1;
+            const rawCat = String(p.category || p.subcategory || '').trim();
+            if (!rawCat) return;
+            
+            const formattedCat = rawCat.charAt(0).toUpperCase() + rawCat.slice(1);
+            categoryTotals[formattedCat] = (categoryTotals[formattedCat] || 0) + 1;
             totalCount += 1;
         });
 
+        if (totalCount === 0) return [];
+
         let data = Object.entries(categoryTotals).map(([name, count]) => ({
-            name: name.charAt(0).toUpperCase() + name.slice(1),
+            name,
             count,
-            value: totalCount > 0 ? (count / totalCount) * 100 : 0
+            value: (count / totalCount) * 100
         })).sort((a, b) => b.count - a.count);
 
         if (data.length > 6) {
             const top5 = data.slice(0, 5);
             const othersCount = data.slice(5).reduce((sum, item) => sum + item.count, 0);
-            const othersValue = totalCount > 0 ? (othersCount / totalCount) * 100 : 0;
+            const othersValue = (othersCount / totalCount) * 100;
             top5.push({ name: 'Other', count: othersCount, value: othersValue });
             data = top5;
         }
@@ -150,10 +156,14 @@ const CategoryShareChart = ({ products = [], loading = false }) => {
                         </div>
                     </>
                 ) : (
-                    <div className="flex flex-col items-center justify-center text-center h-full opacity-60">
-                        <Layers size={48} className="text-[#94A3B8] mb-4" />
-                        <span className="font-heading text-[14px] font-bold text-[#0F172A]">No products found</span>
-                        <span className="text-[13px] text-[#64748B] mt-1 max-w-[200px]">Add products to your catalog to see category distribution.</span>
+                    <div className="flex flex-col items-center justify-center text-center h-full min-h-[220px] py-8">
+                        <div className="w-14 h-14 rounded-2xl bg-slate-50 border border-slate-200/60 flex items-center justify-center mb-3 text-slate-400">
+                            <Layers size={28} className="stroke-[2]" />
+                        </div>
+                        <span className="font-heading text-[15px] font-bold text-[#0F172A]">No Inventory Listings Found</span>
+                        <span className="text-[13px] text-[#64748B] font-medium mt-1 max-w-[220px]">
+                            List products in your inventory to see your category share breakdown.
+                        </span>
                     </div>
                 )}
             </div>

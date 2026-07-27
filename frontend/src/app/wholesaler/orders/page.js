@@ -289,13 +289,10 @@ const WholesalerOrdersPage = () => {
             </div>
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-5 gap-5 mb-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-2">
                 {[
                     { label: 'Total Spent', value: formatPKR(purchaseStats.totalSpent), icon: Banknote, color: 'text-blue-700', bg: 'bg-blue-100' },
-                    { label: 'Total Purchases', value: purchaseOrders.length, icon: Package, color: 'text-indigo-700', bg: 'bg-indigo-100' },
-                    { label: 'Pending Orders', value: purchaseOrders.filter(o => o.status === 'pending' || o.status === 'processing').length, icon: Clock, color: 'text-amber-700', bg: 'bg-amber-100' },
-                    { label: 'Refund Orders', value: purchaseStats.buyerRefundsCount, icon: AlertCircle, color: 'text-red-700', bg: 'bg-red-100' },
-                    { label: 'Active Suppliers', value: new Set(purchaseOrders.map(o => o.seller?._id || o.manufacturer?._id || o.sellerStats?.[0]?.seller?._id).filter(Boolean)).size || purchaseOrders.length > 0 ? new Set(purchaseOrders.map(o => o.seller?._id || o.manufacturer?._id || o.sellerStats?.[0]?.seller?._id).filter(Boolean)).size : 0, icon: ShieldCheck, color: 'text-emerald-700', bg: 'bg-emerald-100' }
+                    { label: 'Total Purchases', value: purchaseOrders.length, icon: Package, color: 'text-indigo-700', bg: 'bg-indigo-100' }
                 ].map((stat, idx) => (
                     <div key={idx} className="bg-white rounded-2xl border border-slate-200 p-5 flex flex-col shadow-[0_2px_10px_rgb(0,0,0,0.02)] hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
                         <div className="flex items-start justify-between mb-4">

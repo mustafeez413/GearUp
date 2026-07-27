@@ -6,6 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { validateMOQ, PLATFORM_MOQ, formatMoqDisplay } from '@/utils/moq';
+import { getProductAvailableStock } from '@/utils/inventory';
 import { normalizeLoadedPackSize } from '@/lib/bulkPackaging';
 import { calculateCommission, getCommissionRate } from '@/utils/commission';
 import {
@@ -27,6 +28,7 @@ import {
     Layers
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isApprovedVerification } from '@/lib/verificationStats';
 import { resolveProductImageUrl, PRODUCT_PLACEHOLDER } from '@/lib/marketplaceData';
 
 const ProductDetailsPage = () => {
@@ -61,6 +63,7 @@ const ProductDetailsPage = () => {
                     id: p._id,
                     name: p.name,
                     category: p.category || 'Cricket',
+                    subcategory: p.subcategory || '',
                     images: p.images?.length > 0
                         ? p.images.map((img) => resolveProductImageUrl(img))
                         : [resolveProductImageUrl(null)],
@@ -83,7 +86,7 @@ const ProductDetailsPage = () => {
                         monthlyCapacity: p.monthlyCapacity || '1,000+ units',
                         exportReady: p.exportReady !== undefined ? p.exportReady : true,
                         capacityIndicator: p.capacityIndicator || 'high',
-                        stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0)
+                        stock: getProductAvailableStock(p)
                     },
                     specifications: p.specifications || {
                         material: 'Premium Grade English Willow',
@@ -322,8 +325,8 @@ const ProductDetailsPage = () => {
                     {/* Product Title Area & Seller */}
                     <div className="bg-[#FFFFFF] rounded-[24px] p-6 sm:p-8 border border-[#E5E7EB] shadow-[0_4px_16px_rgba(15,23,42,0.03)]">
                         <div className="flex flex-wrap items-center gap-2 mb-4">
-                            <div className="px-3 py-1 bg-[#F8FAFC] text-[#475569] rounded-lg font-sans font-[800] text-[10px] uppercase tracking-widest border border-[#E5E7EB]">
-                                {product.category}
+                            <div className="px-3 py-1 bg-[#F8FAFC] text-[#475569] rounded-lg font-sans font-[800] text-[10px] uppercase tracking-widest border border-[#E5E5EB]">
+                                {product.category}{product.subcategory ? ` • ${product.subcategory}` : ''}
                             </div>
                             {product.seller.verified && (
                                 <div className="px-3 py-1 bg-[#00A878]/10 text-[#00A878] rounded-lg font-sans font-[800] text-[10px] uppercase tracking-widest flex items-center gap-1.5 border border-[#00A878]/20">
@@ -419,7 +422,14 @@ const ProductDetailsPage = () => {
                                 {(!user || product?.sellerId !== (user?.id || user?._id)) ? (
                                     <button
                                         type="button"
-                                        onClick={() => router.push(`/wholesaler/cart?add=${product.id}&qty=${quantity}`)}
+                                        onClick={() => {
+                                            if (user && !isApprovedVerification(user)) {
+                                                alert("Business verification is required to buy or sell on GearUp. Please complete your verification in Settings.");
+                                                router.push('/wholesaler/settings');
+                                                return;
+                                            }
+                                            router.push(`/wholesaler/cart?add=${product.id}&qty=${quantity}`);
+                                        }}
                                         className="w-full py-4 bg-gradient-to-r from-[#00A878] to-[#009268] hover:from-[#009268] hover:to-[#007D58] text-[#FFFFFF] rounded-[16px] font-sans font-[800] text-[14px] uppercase tracking-widest transition-all shadow-[0_8px_24px_rgba(0,168,120,0.25)] hover:shadow-[0_12px_32px_rgba(0,168,120,0.35)] hover:-translate-y-1 flex items-center justify-center gap-2 group"
                                     >
                                         <ShoppingCart size={18} className="group-hover:rotate-12 transition-transform" /> Add to Cart

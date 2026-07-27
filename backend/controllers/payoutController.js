@@ -284,8 +284,8 @@ exports.getAdminPayouts = async (req, res) => {
         }
 
         // Normalize any legacy statuses on returned records
-        const normalizedPayouts = payouts.map(p => {
-            const obj = p.toObject();
+        const normalizedPayouts = filteredPayouts.map(p => {
+            const obj = typeof p.toObject === 'function' ? p.toObject() : { ...p };
             if (obj.status === 'Approved' || obj.status === 'APPROVED') {
                 obj.status = 'Pending';
             } else if (obj.status === 'Holding') {
@@ -346,8 +346,8 @@ exports.releasePayout = async (req, res) => {
             return res.status(404).json({ success: false, error: 'Payout record not found' });
         }
 
-        // STRICT VALIDATIONS (Part 13 & Part 9)
-        if (payout.status === 'Released') {
+        // STRICT VALIDATIONS: Prevent duplicate payout release
+        if (payout.status === 'Released' || payout.releasedAt) {
             return res.status(400).json({ success: false, error: 'Payout has already been released' });
         }
 
@@ -370,7 +370,6 @@ exports.releasePayout = async (req, res) => {
         let orderPaymentStatus = (order.paymentStatus || '').trim();
         let lowerPayStatus = orderPaymentStatus.toLowerCase();
 
-        // If legacy order.paymentStatus was mistakenly set to 'Released' or 'Held', fix it to 'Paid'
         if (['released', 'held', 'holding'].includes(lowerPayStatus)) {
             order.paymentStatus = 'Paid';
             await order.save();
@@ -397,59 +396,89 @@ exports.releasePayout = async (req, res) => {
             return res.status(400).json({ success: false, error: 'Cannot release payment: Held Due To Active Dispute' });
         }
 
-        // Validate Seller
+        // Validate Seller & Stripe Connect Onboarding & Verification Status
         const seller = payout.seller;
         if (!seller) {
             return res.status(400).json({ success: false, error: 'Seller account not found' });
         }
 
-        // Check if Stripe Connect is enabled & connected
-        let transferId = null;
-        let releaseNote = '';
-        let conversionData = null;
-
-        if (seller.stripeAccountId) {
-            await stripeConnectService.syncAccountStatus(seller._id);
-            const refreshedSeller = await User.findById(seller._id);
-
-            if (refreshedSeller.stripeAccountStatus === 'Verified' && refreshedSeller.stripePayoutsEnabled) {
-                // 1. Retrieve exchange rate and convert PKR -> EUR
-                try {
-                    conversionData = await exchangeRateService.convertPkrToEur(payout.netAmount);
-                } catch (convErr) {
-                    console.error('[exchange-rate-failed]', convErr);
-                    payout.transferError = `Exchange rate retrieval failed: ${convErr.message}`;
-                    await payout.save();
-                    return res.status(400).json({ success: false, error: `Exchange rate retrieval failed: ${convErr.message}` });
-                }
-
-                // 2. Create Stripe Transfer in EUR
-                try {
-                    const transfer = await stripeConnectService.createTransferToConnectedAccount(
-                        refreshedSeller.stripeAccountId,
-                        conversionData.amountEur,
-                        'eur',
-                        order.orderNumber || order._id
-                    );
-                    transferId = transfer.id;
-                    releaseNote = `Released by Admin via Stripe Transfer ${transfer.id} (€${conversionData.amountEur.toFixed(2)} EUR @ 1 EUR = ${conversionData.pkrPerEur.toFixed(2)} PKR)`;
-                } catch (stripeErr) {
-                    console.error('[stripe-transfer-failed]', stripeErr);
-                    payout.transferError = stripeErr.message;
-                    await payout.save();
-                    return res.status(400).json({ success: false, error: `Stripe transfer failed: ${stripeErr.message}` });
-                }
-            } else {
-                releaseNote = `Released manually by Admin (Stripe account status: ${refreshedSeller.stripeAccountStatus})`;
-            }
-        } else {
-            releaseNote = `Released manually by Admin (No Stripe account connected)`;
+        if (!seller.stripeAccountId) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${seller.name || seller.email}" has not connected a Stripe Connect account.`
+            });
         }
 
-        // Update Payout Status & audit fields
+        // Sync fresh Stripe Connect account status from Stripe API
+        await stripeConnectService.syncAccountStatus(seller._id);
+        const refreshedSeller = await User.findById(seller._id);
+
+        if (!refreshedSeller || !refreshedSeller.stripeAccountId) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${seller.name || seller.email}" does not have a valid connected Stripe account.`
+            });
+        }
+
+        if (!refreshedSeller.stripeOnboardingCompleted) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${refreshedSeller.name}" has not completed Stripe Connect onboarding.`
+            });
+        }
+
+        if (!refreshedSeller.stripeChargesEnabled) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${refreshedSeller.name}" Stripe account charges are not enabled.`
+            });
+        }
+
+        if (!refreshedSeller.stripePayoutsEnabled) {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${refreshedSeller.name}" Stripe account payouts are not enabled.`
+            });
+        }
+
+        if (refreshedSeller.stripeAccountStatus !== 'Verified') {
+            return res.status(400).json({
+                success: false,
+                error: `Cannot release payout: Seller "${refreshedSeller.name}" Stripe Connect account status is "${refreshedSeller.stripeAccountStatus || 'Unverified'}". Account must be fully Verified before payouts can be released.`
+            });
+        }
+
+        // 1. Retrieve exchange rate and convert PKR -> EUR
+        let conversionData;
+        try {
+            conversionData = await exchangeRateService.convertPkrToEur(payout.netAmount);
+        } catch (convErr) {
+            console.error('[exchange-rate-failed]', convErr);
+            payout.transferError = `Exchange rate retrieval failed: ${convErr.message}`;
+            await payout.save();
+            return res.status(400).json({ success: false, error: `Exchange rate retrieval failed: ${convErr.message}` });
+        }
+
+        // 2. Create Stripe Transfer in EUR
+        let transfer;
+        try {
+            transfer = await stripeConnectService.createTransferToConnectedAccount(
+                refreshedSeller.stripeAccountId,
+                conversionData.amountEur,
+                'eur',
+                order.orderNumber || order._id
+            );
+        } catch (stripeErr) {
+            console.error('[stripe-transfer-failed]', stripeErr);
+            payout.transferError = stripeErr.message;
+            await payout.save();
+            return res.status(400).json({ success: false, error: `Stripe transfer failed: ${stripeErr.message}` });
+        }
+
+        // 3. Update Payout Status & audit fields in DB permanently
         payout.status = 'Released';
-        payout.transferId = transferId;
-        payout.stripeTransferId = transferId;
+        payout.transferId = transfer.id;
+        payout.stripeTransferId = transfer.id;
         if (conversionData) {
             payout.transferredAmountEur = conversionData.amountEur;
             payout.exchangeRateUsed = conversionData.pkrPerEur;
@@ -458,7 +487,7 @@ exports.releasePayout = async (req, res) => {
         payout.transferError = null;
         payout.releasedAt = new Date();
         payout.releasedBy = req.user.id;
-        payout.notes = releaseNote;
+        payout.notes = `Released by Admin via Stripe Transfer ${transfer.id} (€${conversionData.amountEur.toFixed(2)} EUR @ 1 EUR = ${conversionData.pkrPerEur.toFixed(2)} PKR)`;
         await payout.save();
 
         // Notify Seller

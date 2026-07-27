@@ -368,13 +368,9 @@ const ManufacturerOrdersPage = () => {
             )}
 
             {/* KPI Cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-6 gap-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 {[
                     { label: "Total Orders", value: totalOrders, icon: Package, color: "text-[#0F172A]", bg: "bg-[#F8FAFC]", topColor: "accent-slate" },
-                    { label: "Pending", value: pendingOrders, icon: Clock, color: "text-amber-600", bg: "bg-amber-50", topColor: "accent-amber" },
-                    { label: "Processing", value: processingOrders, icon: RefreshCw, color: "text-blue-600", bg: "bg-blue-50", topColor: "accent-blue" },
-                    { label: "Delivered", value: deliveredOrders, icon: CheckCircle, color: "text-[#00A878]", bg: "bg-[#E8FFF5]", topColor: "accent-green" },
-                    { label: "Refund Orders", value: sellerRefundsCount, icon: AlertCircle, color: "text-red-600", bg: "bg-red-50", topColor: "accent-red" },
                     { label: "Revenue", value: formatPKR(totalRevenue), icon: Banknote, color: "text-[#0F172A]", bg: "bg-[#F8FAFC]", topColor: "accent-slate" },
                 ].map((stat, idx) => (
                     <div key={idx} className={`kpi-card-enterprise ${stat.topColor} flex flex-col`}>

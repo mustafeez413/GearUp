@@ -11,6 +11,25 @@ const { isLowStockAlert, LOW_STOCK_THRESHOLD } = require('../utils/inventory');
 const { applyBulkPackagingToPayload } = require('../utils/bulkPackagingValidation');
 const { assertUniqueProductSku } = require('../utils/productSkuValidation');
 
+const { isValidCategorySubcategory } = require('../constants/categories');
+
+function ensureProductStockFields(doc) {
+    if (!doc) return doc;
+    const obj = typeof doc.toObject === 'function' ? doc.toObject({ virtuals: true }) : { ...doc };
+    const reserved = Math.max(0, Number(obj.reservedStock) || 0);
+    const total = obj.totalStock != null
+        ? Math.max(0, Number(obj.totalStock) || 0)
+        : Math.max(0, (Number(obj.stock) || 0) + reserved);
+    const available = Math.max(0, total - reserved);
+
+    obj.totalStock = total;
+    obj.reservedStock = reserved;
+    obj.availableStock = available;
+    obj.stock = available;
+    obj.subcategory = doc.subcategory || obj.subcategory || '';
+    return obj;
+}
+
 // Get distinct product categories for marketplace filters
 // GET /api/products/categories
 exports.getProductCategories = async (req, res, next) => {
@@ -31,7 +50,7 @@ exports.getProductCategories = async (req, res, next) => {
 // Public + optionalAuth: sellers never receive their own rows except scope=inventory + seller=self
 exports.getProducts = async (req, res, next) => {
     try {
-        const { keyword, category } = req.query;
+        const { keyword, category, subcategory } = req.query;
         const query = {};
 
         if (keyword) {
@@ -40,13 +59,17 @@ exports.getProducts = async (req, res, next) => {
         if (category) {
             query.category = category;
         }
+        if (subcategory) {
+            query.subcategory = subcategory;
+        }
 
         // Hide soft-deleted products from catalog
         query.isDeleted = { $ne: true };
 
-        // Hide drafts from general public / marketplace view
+        // Hide drafts and deactivated/inactive products from general public / marketplace view
         if (req.query.scope !== 'inventory') {
             query.status = { $ne: 'draft' };
+            query.isActive = { $ne: false };
         }
 
         // Sellers (manufacturer or selling wholesaler) should not see their own products by default
@@ -91,11 +114,13 @@ exports.getProducts = async (req, res, next) => {
                 .sort({ createdAt: -1 });
         }
 
+        const sanitized = (products || []).map(ensureProductStockFields);
+
         res.status(200).json({
             success: true,
-            count: products.length,
+            count: sanitized.length,
             ...pagination,
-            data: products
+            data: sanitized
         });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
@@ -112,11 +137,21 @@ exports.getProduct = async (req, res, next) => {
 
         const product = await Product.findById(req.params.id).populate('manufacturer', 'name businessDetails role');
 
-        if (!product) {
+        if (!product || product.isDeleted) {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        res.status(200).json({ success: true, data: product });
+        const isOwnerOrAdmin = req.user && (
+            (product.seller && String(product.seller) === String(req.user.id)) ||
+            (product.manufacturer && String(product.manufacturer) === String(req.user.id)) ||
+            req.user.role === 'admin'
+        );
+
+        if (product.isActive === false && !isOwnerOrAdmin && req.query.scope !== 'inventory') {
+            return res.status(404).json({ success: false, error: 'Product is currently inactive or unlisted' });
+        }
+
+        res.status(200).json({ success: true, data: ensureProductStockFields(product) });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }
@@ -138,6 +173,16 @@ exports.createProduct = async (req, res, next) => {
         req.body.manufacturer = req.user.id;
         req.body.sellerType = req.user.role === 'manufacturer' ? 'manufacturer' : 'wholesaler';
 
+        if (!req.body.category || !String(req.body.category).trim()) {
+            return res.status(400).json({ success: false, error: 'Main category is required.' });
+        }
+        if (!req.body.subcategory || !String(req.body.subcategory).trim()) {
+            return res.status(400).json({ success: false, error: 'Subcategory is required.' });
+        }
+        if (!isValidCategorySubcategory(req.body.category, req.body.subcategory)) {
+            return res.status(400).json({ success: false, error: `Invalid subcategory "${req.body.subcategory}" for category "${req.body.category}".` });
+        }
+
         const packagingCheck = applyBulkPackagingToPayload(req.body);
         if (!packagingCheck.valid) {
             return res.status(400).json({ success: false, error: packagingCheck.error });
@@ -152,7 +197,7 @@ exports.createProduct = async (req, res, next) => {
         }
 
         const product = await Product.create(req.body);
-        res.status(201).json({ success: true, data: product });
+        res.status(201).json({ success: true, data: ensureProductStockFields(product) });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }
@@ -201,6 +246,21 @@ exports.updateProduct = async (req, res, next) => {
             delete updatePayload.pricePerBulkUnit;
         }
 
+        if (updatePayload.category !== undefined || updatePayload.subcategory !== undefined) {
+            const targetCategory = updatePayload.category !== undefined ? updatePayload.category : product.category;
+            const targetSubcategory = updatePayload.subcategory !== undefined ? updatePayload.subcategory : product.subcategory;
+
+            if (!targetCategory || !String(targetCategory).trim()) {
+                return res.status(400).json({ success: false, error: 'Main category is required.' });
+            }
+            if (!targetSubcategory || !String(targetSubcategory).trim()) {
+                return res.status(400).json({ success: false, error: 'Subcategory is required.' });
+            }
+            if (!isValidCategorySubcategory(targetCategory, targetSubcategory)) {
+                return res.status(400).json({ success: false, error: `Invalid subcategory "${targetSubcategory}" for category "${targetCategory}".` });
+            }
+        }
+
         if (updatePayload.sku !== undefined && updatePayload.sku !== null && String(updatePayload.sku).trim()) {
             updatePayload.sku = String(updatePayload.sku).trim().toUpperCase();
             const skuCheck = await assertUniqueProductSku(updatePayload.sku, req.params.id);
@@ -209,12 +269,20 @@ exports.updateProduct = async (req, res, next) => {
             }
         }
 
-        const newTotal = updatePayload.totalStock !== undefined ? updatePayload.totalStock : updatePayload.stock;
-        if (newTotal !== undefined) {
-            const { adjustStock } = require('../utils/inventoryManager');
-            await adjustStock(product._id, newTotal, req.user.id, 'Manual stock update');
-            delete updatePayload.totalStock;
-            delete updatePayload.stock;
+        // Delete stock management fields from updatePayload to prevent findByIdAndUpdate from overwriting computed inventory fields
+        delete updatePayload.totalStock;
+        delete updatePayload.stock;
+        delete updatePayload.availableStock;
+        delete updatePayload.reservedStock;
+
+        // Manual physical inventory updates MUST only occur when req.body.totalStock is explicitly provided
+        const hasTotalStockUpdate = req.body.totalStock !== undefined && req.body.totalStock !== null && req.body.totalStock !== '';
+        if (hasTotalStockUpdate) {
+            const newTotal = Number(req.body.totalStock);
+            if (Number.isFinite(newTotal) && newTotal >= 0) {
+                const { adjustStock } = require('../utils/inventoryManager');
+                await adjustStock(product._id, newTotal, req.user.id, 'Manual stock update');
+            }
         }
 
         product = await Product.findByIdAndUpdate(req.params.id, updatePayload, {
@@ -222,7 +290,18 @@ exports.updateProduct = async (req, res, next) => {
             runValidators: true
         });
 
-        res.status(200).json({ success: true, data: product });
+        if (product) {
+            const total = product.totalStock != null ? Math.max(0, Number(product.totalStock) || 0) : Math.max(0, Number(product.stock) || 0);
+            const reserved = Math.max(0, Number(product.reservedStock) || 0);
+            const available = Math.max(0, total - reserved);
+            if (product.availableStock !== available || product.stock !== available) {
+                product.availableStock = available;
+                product.stock = available;
+                await product.save();
+            }
+        }
+
+        res.status(200).json({ success: true, data: ensureProductStockFields(product) });
     } catch (error) {
         res.status(400).json({ success: false, error: error.message });
     }
@@ -248,39 +327,60 @@ exports.uploadImage = async (req, res) => {
 exports.deleteProduct = async (req, res, next) => {
     try {
         const product = await Product.findById(req.params.id);
-
         if (!product) {
             return res.status(404).json({ success: false, error: 'Product not found' });
         }
 
-        const productOwnerId = product.manufacturer || product.seller;
-        if (!productOwnerId || (productOwnerId.toString() !== req.user.id.toString() && req.user.role !== 'admin')) {
-            return res.status(401).json({ success: false, error: 'Not authorized to delete this product' });
+        const isOwnerOrAdmin = (product.seller && product.seller.toString() === req.user.id) || 
+                              (product.manufacturer && product.manufacturer.toString() === req.user.id) ||
+                              req.user.role === 'admin';
+
+        if (!isOwnerOrAdmin) {
+            const message = ACCESS_DENIED_OWN_PRODUCT;
+            return res.status(403).json({
+                success: false,
+                message,
+                error: message
+            });
         }
 
         // Check if product is associated with any active orders
+        const productOwnerId = product.seller || product.manufacturer;
         const Order = require('../models/Order');
-        const activeOrder = await Order.findOne({
-            'items.product': req.params.id,
-            $or: [
-                { status: { $nin: ['completed', 'cancelled', 'refunded'] } },
-                {
-                    sellerStats: {
-                        $elemMatch: {
-                            seller: productOwnerId,
-                            status: { $nin: ['completed', 'cancelled', 'refunded'] }
-                        }
-                    }
-                },
-                {
-                    items: {
-                        $elemMatch: {
-                            product: req.params.id,
-                            disputeStatus: { $in: ['open', 'under_review', 'investigating', 'awaiting_seller', 'seller_responded'] }
-                        }
-                    }
+
+        const ordersWithProduct = await Order.find({
+            'items.product': req.params.id
+        }).lean();
+
+        const nonActiveStatuses = ['completed', 'cancelled', 'canceled', 'refunded', 'returned'];
+
+        const activeOrder = ordersWithProduct.find(order => {
+            const mainStatus = String(order.status || '').trim().toLowerCase();
+            const isMainStatusNonActive = nonActiveStatuses.includes(mainStatus);
+
+            // Check if there is an open active dispute on this product's item
+            const hasActiveDispute = (order.items || []).some(item => {
+                const pId = String(item.product?._id || item.product || '');
+                if (pId === String(req.params.id)) {
+                    const disputeSt = String(item.disputeStatus || '').trim().toLowerCase();
+                    return ['open', 'under_review', 'investigating', 'awaiting_seller', 'seller_responded'].includes(disputeSt);
                 }
-            ]
+                return false;
+            });
+
+            if (hasActiveDispute) return true;
+
+            // Check seller status in sellerStats if present
+            if (order.sellerStats && Array.isArray(order.sellerStats) && order.sellerStats.length > 0 && productOwnerId) {
+                const sellerStat = order.sellerStats.find(s => String(s.seller?._id || s.seller || '') === String(productOwnerId));
+                if (sellerStat && sellerStat.status) {
+                    const statStatus = String(sellerStat.status).trim().toLowerCase();
+                    const isStatNonActive = nonActiveStatuses.includes(statStatus);
+                    if (!isStatNonActive) return true;
+                }
+            }
+
+            return !isMainStatusNonActive;
         });
 
         if (activeOrder) {
@@ -315,7 +415,10 @@ exports.getInventoryAnalytics = async (req, res, next) => {
 
         const totalProducts = products.length;
         const lowStockCount = products.filter(isLowStockAlert).length;
-        const totalStockValue = products.reduce((acc, p) => acc + (Number(p.stock || 0) * Number(p.price || p.pricePerBulkUnit || 0)), 0);
+        const totalStockValue = products.reduce((acc, p) => {
+            const totalStock = Math.max(0, Number(p.totalStock) || 0);
+            return acc + (totalStock * Number(p.price || p.pricePerBulkUnit || 0));
+        }, 0);
 
         res.status(200).json({
             success: true,

@@ -12,17 +12,20 @@ const VerifyEmailContent = () => {
     const [success, setSuccess] = useState(false);
     const [loading, setLoading] = useState(false);
     const [resending, setResending] = useState(false);
-    const [timer, setTimer] = useState(60);
+    const [resendSuccess, setResendSuccess] = useState('');
+    const [timer, setTimer] = useState(0);
     const searchParams = useSearchParams();
-    const email = searchParams.get('email');
+    const emailParam = searchParams.get('email');
     const router = useRouter();
     const { user, updateUser } = useAuth();
 
+    const targetEmail = (emailParam || user?.email || '').trim();
+
     useEffect(() => {
-        if (!email) {
+        if (!targetEmail && !user) {
             router.push('/register');
         }
-    }, [email, router]);
+    }, [targetEmail, user, router]);
 
     useEffect(() => {
         // Clear any stale errors on mount
@@ -64,7 +67,13 @@ const VerifyEmailContent = () => {
             return;
         }
 
+        if (!targetEmail) {
+            setError('Email address is missing. Please sign in or register again.');
+            return;
+        }
+
         setError('');
+        setResendSuccess('');
         setLoading(true);
 
         try {
@@ -77,7 +86,7 @@ const VerifyEmailContent = () => {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ email, otp: otpCode })
+                body: JSON.stringify({ email: targetEmail, otp: otpCode })
             });
 
             // Check if response is actually JSON before parsing
@@ -85,7 +94,7 @@ const VerifyEmailContent = () => {
             if (!contentType || !contentType.includes("application/json")) {
                 const text = await response.text();
                 console.error("Received non-JSON response:", text);
-                throw new Error("Server returned an invalid response (HTML instead of JSON). Please ensure the backend is running on port 5000.");
+                throw new Error("Server returned an invalid response (HTML instead of JSON). Please ensure backend is running.");
             }
 
             const data = await response.json();
@@ -120,9 +129,14 @@ const VerifyEmailContent = () => {
 
     const handleResend = async () => {
         if (timer > 0) return;
+        if (!targetEmail) {
+            setError('Email address is missing. Please sign in or register again.');
+            return;
+        }
 
         setResending(true);
         setError('');
+        setResendSuccess('');
         try {
             const targetUrl = `${getApiBaseUrl()}/api/auth/resend-otp?t=${Date.now()}`;
 
@@ -132,7 +146,7 @@ const VerifyEmailContent = () => {
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ email })
+                body: JSON.stringify({ email: targetEmail })
             });
 
             const contentType = response.headers.get("content-type");
@@ -147,7 +161,7 @@ const VerifyEmailContent = () => {
             }
 
             setTimer(60);
-            alert('A new verification code has been sent to your email.');
+            setResendSuccess(`A new 6-digit verification code has been sent to ${targetEmail}`);
         } catch (err) {
             setError(err.message);
         } finally {
@@ -173,7 +187,7 @@ const VerifyEmailContent = () => {
                         <h1 className="font-heading text-3xl font-bold text-slate-900 mb-2">Verify Your Email</h1>
                         <p className="text-slate-600">
                             We've sent a 6-digit verification code to <br />
-                            <span className="font-bold text-slate-800">{email}</span>
+                            <span className="font-bold text-slate-800">{targetEmail || 'your email'}</span>
                         </p>
                     </div>
 
@@ -181,6 +195,13 @@ const VerifyEmailContent = () => {
                         <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-3 animate-shake">
                             <AlertCircle className="w-5 h-5 text-red-600 flex-shrink-0" />
                             <p className="text-sm text-red-600 font-medium">{error}</p>
+                        </div>
+                    )}
+
+                    {resendSuccess && (
+                        <div className="mb-6 p-4 bg-blue-50 border border-blue-200 rounded-xl flex items-center gap-3 animate-fadeIn">
+                            <CheckCircle className="w-5 h-5 text-blue-600 flex-shrink-0" />
+                            <p className="text-sm text-blue-600 font-medium">{resendSuccess}</p>
                         </div>
                     )}
 

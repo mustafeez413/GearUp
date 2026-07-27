@@ -6,7 +6,7 @@ import Skeleton from '@/components/common/Skeleton';
 import { useAuth } from '@/context/AuthContext';
 import useReadOnlyMode from '@/hooks/useReadOnlyMode';
 import { useRouter } from 'next/navigation';
-import { isLowStock, isOutOfStock, isHealthyStock } from '@/utils/inventory';
+import { isLowStock, isOutOfStock, isHealthyStock, getProductAvailableStock, getProductTotalStock } from '@/utils/inventory';
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer,
     PieChart, Pie, Cell, Legend
@@ -66,10 +66,44 @@ export default function InventoryOverviewPage() {
         }
     }, [fetchData, user]);
 
+    const [togglingId, setTogglingId] = useState(null);
+
     const handleSync = async () => {
         setSyncing(true);
         await fetchData();
         setTimeout(() => setSyncing(false), 600);
+    };
+
+    const handleToggleProductStatus = async (product) => {
+        const targetId = product._id || product.id;
+        try {
+            setTogglingId(targetId);
+            const token = localStorage.getItem('token');
+            const newIsActive = product.isActive === false ? true : false;
+
+            const response = await fetch(`${getApiBaseUrl()}/api/products/${targetId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ isActive: newIsActive })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setProducts(prev => prev.map(p => {
+                    if ((p._id || p.id) === targetId) {
+                        return { ...p, isActive: newIsActive };
+                    }
+                    return p;
+                }));
+            }
+        } catch (err) {
+            console.error('Failed to toggle status:', err);
+        } finally {
+            setTogglingId(null);
+        }
     };
 
     // Derived Metrics
@@ -104,8 +138,8 @@ export default function InventoryOverviewPage() {
         });
 
         products.forEach(p => {
-            const total = p.totalStock !== undefined ? p.totalStock : (p.stock || 0);
-            const avail = p.availableStock !== undefined ? p.availableStock : (p.stock || 0);
+            const total = getProductTotalStock(p);
+            const avail = getProductAvailableStock(p);
             inventoryValue += (total * (p.pricePerBulkUnit || 0));
 
             if (avail === 0) outOfStockCount++;
@@ -382,12 +416,12 @@ export default function InventoryOverviewPage() {
                                 </thead>
                                 <tbody className="divide-y divide-slate-100">
                                                     {[...criticalStockProducts, ...lowStockProducts].slice(0, 8).map((product) => {
-                                        const avail = product.availableStock !== undefined ? product.availableStock : (product.stock || 0);
-                                        const total = product.totalStock !== undefined ? product.totalStock : (product.stock || 0);
+                                        const avail = getProductAvailableStock(product);
+                                        const total = getProductTotalStock(product);
                                         return (
                                             <tr key={product._id} className="hover:bg-slate-50/50 transition-colors text-sm font-medium text-slate-700">
                                                 <td className="px-6 py-4 max-w-[200px] truncate" title={product.name}>{product.name}</td>
-                                                <td className="px-6 py-4 text-slate-500">{product.category || 'N/A'}</td>
+                                                <td className="px-6 py-4 text-slate-500">{product.category || 'N/A'}{product.subcategory ? ` • ${product.subcategory}` : ''}</td>
                                                 <td className="px-6 py-4 text-center font-bold text-slate-900">
                                                     <span className="text-[#00A878]">{avail}</span> / <span className="text-slate-500">{total} {product.bulkUnit || 'unit'}s</span>
                                                 </td>
@@ -400,12 +434,24 @@ export default function InventoryOverviewPage() {
                                                         {(avail === 0) ? 'Out of Stock' : (avail < 10) ? 'Critical' : 'Low'}
                                                     </span>
                                                 </td>
-                                                <td className="px-6 py-4 text-right">
+                                                <td className="px-6 py-4 text-right flex items-center justify-end gap-2">
                                                     <button 
                                                         onClick={() => router.push(`/manufacturer/products/edit/${product._id}`)}
                                                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors shadow-sm"
                                                     >
                                                         Update
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => handleToggleProductStatus(product)}
+                                                        disabled={togglingId === product._id}
+                                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[11px] font-bold uppercase tracking-wider transition-colors border shadow-sm disabled:opacity-50 ${
+                                                            product.isActive === false
+                                                                ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                                                                : 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
+                                                        }`}
+                                                    >
+                                                        {togglingId === product._id ? 'Updating...' : product.isActive === false ? 'Reactivate' : 'Deactivate'}
                                                     </button>
                                                 </td>
                                             </tr>

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { PLATFORM_MOQ } from '@/utils/moq';
+import { getProductAvailableStock } from '@/utils/inventory';
 import { normalizeLoadedPackSize } from '@/lib/bulkPackaging';
 import { resolveProductImageUrl } from '@/lib/marketplaceData';
 
@@ -81,7 +82,7 @@ const ManufacturerProfilePage = () => {
                     name: p?.name || 'Product',
                     image: resolveProductImageUrl(p?.images?.[0] || null),
                     price: p?.price || 0,
-                    stock: p?.availableStock !== undefined ? p.availableStock : (p?.stock || 0),
+                    stock: getProductAvailableStock(p),
                     moq: p?.minimumOrderQuantity || 1,
                     bulkUnit: p?.bulkUnit || 'Dozen',
                     packSize: normalizeLoadedPackSize(p?.bulkUnit || 'Dozen', p?.packSize) || 12,

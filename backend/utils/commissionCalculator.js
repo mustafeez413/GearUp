@@ -11,7 +11,7 @@ async function loadCommissionSettings() {
     return {
         commissionEnabled: settings?.commissionEnabled ?? DEFAULTS.commissionEnabled,
         platformFeePercentage: settings?.platformFeePercentage ?? DEFAULTS.platformFeePercentage,
-        commissionChargedTo: settings?.commissionChargedTo ?? DEFAULTS.commissionChargedTo
+        commissionChargedTo: 'seller'
     };
 }
 

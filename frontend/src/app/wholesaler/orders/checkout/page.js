@@ -19,6 +19,7 @@ import {
     Loader2
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
+import { isApprovedVerification } from '@/lib/verificationStats';
 import { getAllPakistanCities, isRecognizedCity } from '@/lib/pakistanLocations';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardElement, useStripe, useElements } from '@stripe/react-stripe-js';
@@ -288,9 +289,7 @@ const WholesalerCheckoutPage = () => {
     }, [user, router]);
 
     const totalAmount = cartItems.reduce((sum, item) => {
-        const rate = 0.001; // 0.1% platform fee
-        const total = (item.price * (1 + rate)) * item.quantity;
-        return sum + total;
+        return sum + (Number(item.price) || 0) * (Number(item.quantity) || 0);
     }, 0);
 
     // Dynamic clean phone number validation
@@ -314,6 +313,11 @@ const WholesalerCheckoutPage = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!isApprovedVerification(user)) {
+            setError('Business verification is required to place purchase orders. Please complete your business verification in Settings.');
+            return;
+        }
         
         if (!validateCity(formData.city)) {
             setError(`'${formData.city}' is not a recognized city. Please select from the suggestion list.`);

@@ -201,23 +201,6 @@ export default function SalesReportsPage() {
                     </div>
 
                     <div className="space-y-6">
-                        <div className="bg-white rounded-3xl border border-slate-200 shadow-sm p-6">
-                            <h3 className="font-heading text-lg font-bold text-slate-800 mb-5">Top Selling Categories</h3>
-                            <div className="space-y-4">
-                                {['Cricket Gear', 'Protective Wear', 'Athletic Shoes'].map((cat, i) => (
-                                    <div key={i}>
-                                        <div className="flex justify-between text-sm mb-1">
-                                            <span className="font-bold text-slate-700">{cat}</span>
-                                            <span className="text-slate-500 font-medium">{75 - (i * 15)}%</span>
-                                        </div>
-                                        <div className="w-full bg-slate-100 rounded-full h-2">
-                                            <div className="bg-[#00A878] h-2 rounded-full" style={{ width: `${75 - (i * 15)}%` }}></div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
                         <div className="bg-[#0F172A] rounded-3xl border border-slate-800 shadow-xl p-6 relative overflow-hidden">
                             <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-[#00A878]/20 blur-3xl rounded-full pointer-events-none" />
                             <h3 className="font-heading text-lg font-bold text-white mb-2 relative z-10">Revenue Insight</h3>

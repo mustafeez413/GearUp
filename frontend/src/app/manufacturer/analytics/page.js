@@ -336,67 +336,46 @@ function AnalyticsContent() {
                             </div>
                         </div>
 
-                        {/* Sales History Table & Insights */}
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
-                                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-                                    <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight">Recent Sales Orders</h3>
-                                </div>
-                                <div className="overflow-x-auto flex-1 p-2">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-slate-50">
-                                                <th className="px-4 py-4">Order ID</th>
-                                                <th className="px-4 py-4">Buyer</th>
-                                                <th className="px-4 py-4">Status</th>
-                                                <th className="px-4 py-4">Date</th>
-                                                <th className="px-4 py-4 text-right">Revenue</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {salesOrders.slice(0, 5).map((order) => (
-                                                <tr key={order._id} className="hover:bg-slate-50/50 transition-colors text-sm font-semibold text-slate-700 group cursor-pointer">
-                                                    <td className="px-4 py-4 group-hover:text-slate-900 transition-colors">#{order._id.substring(order._id.length - 6).toUpperCase()}</td>
-                                                    <td className="px-4 py-4 truncate max-w-[150px] group-hover:text-slate-900 transition-colors">{order.buyer?.businessName || order.buyer?.name || 'Unknown Buyer'}</td>
-                                                    <td className="px-4 py-4">
-                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest ${
-                                                            order.status === 'delivered' || order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                                            order.status === 'processing' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
-                                                            order.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                                                            'bg-amber-50 text-amber-700 border border-amber-100'
-                                                        }`}>
-                                                            {order.status === 'completed' ? 'Completed' : order.status === 'delivered' ? 'Completed' : order.status === 'processing' ? 'Processing' : order.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-slate-500 text-[13px] font-medium">{new Date(order.createdAt).toLocaleDateString()}</td>
-                                                    <td className="px-4 py-4 text-right font-black text-slate-900">{formatPKR(order.totalAmount)}</td>
-                                                </tr>
-                                            ))}
-                                            {salesOrders.length === 0 && (
-                                                <tr><td colSpan="5" className="px-4 py-16 text-center text-slate-400 font-medium">No sales found.</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        {/* Sales History Table */}
+                        <div className="bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+                            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                                <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight">Recent Sales Orders</h3>
                             </div>
-
-                            <div className="space-y-6">
-                                <div className="bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] p-6">
-                                    <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight mb-5">Top Categories</h3>
-                                    <div className="space-y-5">
-                                        {['Cricket Gear', 'Protective Wear', 'Athletic Shoes'].map((cat, i) => (
-                                            <div key={i} className="group">
-                                                <div className="flex justify-between text-[13px] mb-1.5">
-                                                    <span className="font-bold text-slate-700 group-hover:text-slate-900 transition-colors">{cat}</span>
-                                                    <span className="text-slate-500 font-bold">{75 - (i * 15)}%</span>
-                                                </div>
-                                                <div className="w-full bg-slate-50 border border-slate-100 rounded-full h-2 overflow-hidden">
-                                                    <div className="bg-slate-900 h-full rounded-full transition-all duration-500" style={{ width: `${75 - (i * 15)}%` }}></div>
-                                                </div>
-                                            </div>
+                            <div className="overflow-x-auto flex-1 p-2">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-slate-50">
+                                            <th className="px-4 py-4">Order ID</th>
+                                            <th className="px-4 py-4">Buyer</th>
+                                            <th className="px-4 py-4">Status</th>
+                                            <th className="px-4 py-4">Date</th>
+                                            <th className="px-4 py-4 text-right">Revenue</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {salesOrders.slice(0, 5).map((order) => (
+                                            <tr key={order._id} className="hover:bg-slate-50/50 transition-colors text-sm font-semibold text-slate-700 group cursor-pointer">
+                                                <td className="px-4 py-4 group-hover:text-slate-900 transition-colors">#{order._id.substring(order._id.length - 6).toUpperCase()}</td>
+                                                <td className="px-4 py-4 truncate max-w-[150px] group-hover:text-slate-900 transition-colors">{order.buyer?.businessName || order.buyer?.name || 'Unknown Buyer'}</td>
+                                                <td className="px-4 py-4">
+                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest ${
+                                                        order.status === 'delivered' || order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                        order.status === 'processing' ? 'bg-blue-50 text-blue-700 border border-blue-100' :
+                                                        order.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                                                        'bg-amber-50 text-amber-700 border border-amber-100'
+                                                    }`}>
+                                                        {order.status === 'completed' ? 'Completed' : order.status === 'delivered' ? 'Completed' : order.status === 'processing' ? 'Processing' : order.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-4 text-slate-500 text-[13px] font-medium">{new Date(order.createdAt).toLocaleDateString()}</td>
+                                                <td className="px-4 py-4 text-right font-black text-slate-900">{formatPKR(order.totalAmount)}</td>
+                                            </tr>
                                         ))}
-                                    </div>
-                                </div>
+                                        {salesOrders.length === 0 && (
+                                            <tr><td colSpan="5" className="px-4 py-16 text-center text-slate-400 font-medium">No sales found.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
@@ -431,68 +410,46 @@ function AnalyticsContent() {
                             </div>
                         </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                            <div className="lg:col-span-2 bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
-                                <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-                                    <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight">Recent Purchase Orders</h3>
-                                </div>
-                                <div className="overflow-x-auto flex-1 p-2">
-                                    <table className="w-full text-left border-collapse">
-                                        <thead>
-                                            <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-slate-50">
-                                                <th className="px-4 py-4">PO Number</th>
-                                                <th className="px-4 py-4">Supplier</th>
-                                                <th className="px-4 py-4">Status</th>
-                                                <th className="px-4 py-4">Date</th>
-                                                <th className="px-4 py-4 text-right">Cost</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {purchaseOrders.slice(0, 5).map((order) => (
-                                                <tr key={order._id} className="hover:bg-slate-50/50 transition-colors text-sm font-semibold text-slate-700 group cursor-pointer">
-                                                    <td className="px-4 py-4 group-hover:text-slate-900 transition-colors">#{order._id.substring(order._id.length - 6).toUpperCase()}</td>
-                                                    <td className="px-4 py-4 truncate max-w-[150px] group-hover:text-slate-900 transition-colors">{order.seller?.businessName || order.seller?.name || 'Unknown Supplier'}</td>
-                                                    <td className="px-4 py-4">
-                                                        <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest ${
-                                                            order.status === 'delivered' || order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
-                                                            order.status === 'processing' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
-                                                            order.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
-                                                            'bg-blue-50 text-blue-700 border border-blue-100'
-                                                        }`}>
-                                                            {order.status === 'completed' ? 'Delivered' : order.status === 'delivered' ? 'Delivered' : order.status === 'processing' ? 'Pending Approval' : order.status === 'cancelled' ? 'Cancelled' : 'Pending'}
-                                                        </span>
-                                                    </td>
-                                                    <td className="px-4 py-4 text-slate-500 text-[13px] font-medium">{new Date(order.createdAt).toLocaleDateString()}</td>
-                                                    <td className="px-4 py-4 text-right font-black text-slate-900">{formatPKR(order.totalAmount)}</td>
-                                                </tr>
-                                            ))}
-                                            {purchaseOrders.length === 0 && (
-                                                <tr><td colSpan="5" className="px-4 py-16 text-center text-slate-400 font-medium">No purchases found.</td></tr>
-                                            )}
-                                        </tbody>
-                                    </table>
-                                </div>
+                        {/* Purchase Orders Table */}
+                        <div className="bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] overflow-hidden flex flex-col">
+                            <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                                <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight">Recent Purchase Orders</h3>
                             </div>
-                            
-                            <div className="space-y-6">
-                                <div className="bg-white rounded-[1.5rem] border border-[#E2E8F0] shadow-[0_2px_15px_-3px_rgba(0,0,0,0.02)] p-6">
-                                    <h3 className="font-heading text-lg font-bold text-slate-800 tracking-tight mb-5">Supplier Concentration</h3>
-                                    <div className="space-y-4">
-                                        <div className="flex justify-between items-center text-[13px] border-b border-slate-50 pb-3">
-                                            <span className="font-bold text-slate-700">Total Suppliers Used</span>
-                                            <span className="bg-slate-100 text-slate-900 font-bold px-2.5 py-1 rounded-md">{stats.uniqueSuppliers}</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-[13px] border-b border-slate-50 pb-3">
-                                            <span className="font-bold text-slate-700">Top Supplier Dependency</span>
-                                            <span className="text-amber-600 font-bold">42%</span>
-                                        </div>
-                                        <div className="flex justify-between items-center text-[13px]">
-                                            <span className="font-bold text-slate-700">Avg Lead Time</span>
-                                            <span className="text-emerald-600 font-bold tracking-wide">4.2 Days</span>
-                                        </div>
-                                    </div>
-                                </div>
-
+                            <div className="overflow-x-auto flex-1 p-2">
+                                <table className="w-full text-left border-collapse">
+                                    <thead>
+                                        <tr className="text-slate-400 text-[10px] uppercase tracking-widest font-bold border-b border-slate-50">
+                                            <th className="px-4 py-4">PO Number</th>
+                                            <th className="px-4 py-4">Supplier</th>
+                                            <th className="px-4 py-4">Status</th>
+                                            <th className="px-4 py-4">Date</th>
+                                            <th className="px-4 py-4 text-right">Cost</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-50">
+                                        {purchaseOrders.slice(0, 5).map((order) => (
+                                            <tr key={order._id} className="hover:bg-slate-50/50 transition-colors text-sm font-semibold text-slate-700 group cursor-pointer">
+                                                <td className="px-4 py-4 group-hover:text-slate-900 transition-colors">#{order._id.substring(order._id.length - 6).toUpperCase()}</td>
+                                                <td className="px-4 py-4 truncate max-w-[150px] group-hover:text-slate-900 transition-colors">{order.seller?.businessName || order.seller?.name || 'Unknown Supplier'}</td>
+                                                <td className="px-4 py-4">
+                                                    <span className={`px-2.5 py-1 rounded-md text-[10px] uppercase font-bold tracking-widest ${
+                                                        order.status === 'delivered' || order.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-100' :
+                                                        order.status === 'processing' ? 'bg-amber-50 text-amber-700 border border-amber-100' :
+                                                        order.status === 'cancelled' ? 'bg-rose-50 text-rose-700 border border-rose-100' :
+                                                        'bg-blue-50 text-blue-700 border border-blue-100'
+                                                    }`}>
+                                                        {order.status === 'completed' ? 'Delivered' : order.status === 'delivered' ? 'Delivered' : order.status === 'processing' ? 'Pending Approval' : order.status === 'cancelled' ? 'Cancelled' : 'Pending'}
+                                                    </span>
+                                                </td>
+                                                <td className="px-4 py-4 text-slate-500 text-[13px] font-medium">{new Date(order.createdAt).toLocaleDateString()}</td>
+                                                <td className="px-4 py-4 text-right font-black text-slate-900">{formatPKR(order.totalAmount)}</td>
+                                            </tr>
+                                        ))}
+                                        {purchaseOrders.length === 0 && (
+                                            <tr><td colSpan="5" className="px-4 py-16 text-center text-slate-400 font-medium">No purchases found.</td></tr>
+                                        )}
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>

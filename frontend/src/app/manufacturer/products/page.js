@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
-import { getInventoryStatus } from '@/utils/inventory';
+import { getInventoryStatus, getProductAvailableStock, getProductTotalStock } from '@/utils/inventory';
 import PageShell from '@/components/dashboard/PageShell';
 import PageHeader from '@/components/dashboard/PageHeader';
 import Card from '@/components/common/Card';
@@ -30,7 +30,8 @@ import {
     Filter,
     AlertCircle,
     MoreVertical,
-    CheckCircle
+    CheckCircle,
+    Power
 } from 'lucide-react';
 
 const ProductsPage = () => {
@@ -43,6 +44,7 @@ const ProductsPage = () => {
     const [activeTab, setActiveTab] = useState('products');
     const [products, setProducts] = useState([]);
     const [loading, setLoading] = useState(false);
+    const [togglingProductId, setTogglingProductId] = useState(null);
     const [deleteConfirmProduct, setDeleteConfirmProduct] = useState(null);
     const [deletingProductId, setDeletingProductId] = useState(null);
     const [successToast, setSuccessToast] = useState(null);
@@ -69,15 +71,17 @@ const ProductsPage = () => {
                     name: p.name,
                     image: p.images?.[0] || null,
                     price: p.pricePerBulkUnit || p.price || 0,
-                    stock: p.availableStock !== undefined ? p.availableStock : (p.stock || 0),
-                    totalStock: p.totalStock !== undefined ? p.totalStock : (p.stock || 0),
+                    stock: getProductAvailableStock(p),
+                    totalStock: getProductTotalStock(p),
                     reservedStock: p.reservedStock || 0,
                     moq: p.minimumOrderQuantity || 1,
                     bulkUnit: p.bulkUnit || 'Dozen',
                     packSize: normalizeLoadedPackSize(p.bulkUnit || 'Dozen', p.packSize) || 12,
                     status: getInventoryStatus(p),
                     category: p.category || 'General',
-                    sku: p.sku || 'N/A'
+                    subcategory: p.subcategory || '',
+                    sku: p.sku || 'N/A',
+                    isActive: p.isActive !== false
                 })));
             }
         } catch (err) {
@@ -158,6 +162,45 @@ const ProductsPage = () => {
             setTimeout(() => setErrorToast(null), 3000);
         } finally {
             setDeletingProductId(null);
+        }
+    };
+
+    const handleToggleProductStatus = async (product) => {
+        if (!guardAction()) return;
+        const targetId = product.id || product._id;
+        try {
+            setTogglingProductId(targetId);
+            const token = localStorage.getItem('token');
+            const newIsActive = product.isActive === false ? true : false;
+
+            const response = await fetch(`${getApiBaseUrl()}/api/products/${targetId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ isActive: newIsActive })
+            });
+
+            const data = await response.json();
+            if (response.ok && data.success) {
+                setProducts(prev => prev.map(p => {
+                    if ((p.id || p._id) === targetId) {
+                        return { ...p, isActive: newIsActive };
+                    }
+                    return p;
+                }));
+                setSuccessToast(`Product ${newIsActive ? 'activated' : 'deactivated'} successfully`);
+                setTimeout(() => setSuccessToast(null), 3000);
+            } else {
+                throw new Error(data.message || data.error || 'Failed to update product status');
+            }
+        } catch (err) {
+            console.error('Error toggling product status:', err);
+            setErrorToast(err.message || 'Failed to update product status');
+            setTimeout(() => setErrorToast(null), 3000);
+        } finally {
+            setTogglingProductId(null);
         }
     };
 
@@ -356,7 +399,7 @@ const ProductsPage = () => {
 
                                 <div className="p-5 flex flex-col flex-1">
                                     <div className="flex justify-between items-start mb-2 gap-4">
-                                        <div className="text-[13px] font-[500] text-[#64748B] truncate">{product.category}</div>
+                                        <div className="text-[13px] font-[500] text-[#64748B] truncate">{product.category}{product.subcategory ? ` • ${product.subcategory}` : ''}</div>
                                         <div className="text-[12px] text-[#94A3B8] font-mono shrink-0">SKU: {product.sku}</div>
                                     </div>
                                     <h3 className="font-sans text-[16px] font-[700] text-[#0F172A] line-clamp-2 leading-snug mb-4">{product.name}</h3>
@@ -405,6 +448,27 @@ const ProductsPage = () => {
                                             {!isReadOnlyMode && (
                                             <button
                                                 type="button"
+                                                onClick={(e) => { e.preventDefault(); e.stopPropagation(); handleToggleProductStatus(product); }}
+                                                disabled={togglingProductId === (product.id || product._id)}
+                                                className={`action-btn-icon transition-colors disabled:opacity-50 ${
+                                                    product.isActive === false
+                                                        ? 'bg-emerald-50 text-emerald-600 border-emerald-200 hover:bg-emerald-100'
+                                                        : 'bg-amber-50 text-amber-600 border-amber-200 hover:bg-amber-100'
+                                                }`}
+                                                title={product.isActive === false ? 'Reactivate Product' : 'Deactivate Product'}
+                                            >
+                                                {togglingProductId === (product.id || product._id) ? (
+                                                    <div className="w-4 h-4 border-2 border-amber-200 border-t-amber-600 rounded-full animate-spin"></div>
+                                                ) : product.isActive === false ? (
+                                                    <CheckCircle size={16} />
+                                                ) : (
+                                                    <Power size={16} />
+                                                )}
+                                            </button>
+                                            )}
+                                            {!isReadOnlyMode && (
+                                            <button
+                                                type="button"
                                                 onClick={(e) => { e.preventDefault(); e.stopPropagation(); setDeleteConfirmProduct(product); }}
                                                 disabled={deletingProductId === product.id}
                                                 className="action-btn-icon hover:bg-[#FEF2F2] hover:text-[#DC2626] hover:border-[#FCA5A5] disabled:opacity-50"
@@ -442,9 +506,10 @@ const ProductsPage = () => {
                                 {Object.entries(products.reduce((acc, product) => {
                                     const cat = product.category || 'Uncategorized';
                                     if (!acc[cat]) acc[cat] = { count: 0, stock: 0, totalValue: 0 };
+                                    const physStock = product.totalStock != null ? product.totalStock : (product.stock || 0);
                                     acc[cat].count += 1;
-                                    acc[cat].stock += product.stock;
-                                    acc[cat].totalValue += (product.price * product.stock);
+                                    acc[cat].stock += physStock;
+                                    acc[cat].totalValue += (product.price * physStock);
                                     return acc;
                                 }, {})).map(([name, stats]) => (
                                     <tr key={name} className="hover:bg-[#F8FFFC] transition-all group">

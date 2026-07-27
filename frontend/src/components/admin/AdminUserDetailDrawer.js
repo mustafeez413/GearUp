@@ -355,73 +355,7 @@ export default function AdminUserDetailDrawer({
               </div>
             </DrawerSection>
 
-            <DrawerSection title="Payment Information" icon={CreditCard}>
-              {hasPaymentInformation(payment) ? (
-                <div className="space-y-5">
-                  <div>
-                    <p className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[#64748B]">
-                      Bank Details
-                    </p>
-                    {hasBankDetails(payment) ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <DetailField label="Bank Name" value={payment.bankName || '—'} mono />
-                        <DetailField label="Account Title" value={payment.accountTitle || '—'} mono />
-                        <DetailField label="Account Number" value={payment.accountNumber || '—'} mono />
-                        <DetailField label="IBAN" value={payment.iban || '—'} mono />
-                      </div>
-                    ) : (
-                      <p className="text-[14px] font-medium italic text-[#64748B]">No bank details provided</p>
-                    )}
-                  </div>
 
-                  <div>
-                    <p className="mb-3 text-[12px] font-semibold uppercase tracking-wider text-[#64748B]">
-                      Mobile Wallets
-                    </p>
-                    {hasMobileWallet(payment) ? (
-                      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                        <DetailField label="JazzCash" value={payment.jazzCashNumber || '—'} mono />
-                        <DetailField label="Easypaisa" value={payment.easypaisaNumber || '—'} mono />
-                      </div>
-                    ) : (
-                      <p className="text-[14px] font-medium italic text-[#64748B]">No mobile wallet configured</p>
-                    )}
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[14px] font-medium italic text-[#64748B]">No payment information configured</p>
-              )}
-            </DrawerSection>
-
-            {user.role === 'manufacturer' && (
-              <DrawerSection title="Payout Information" icon={CreditCard}>
-                <div className="space-y-4">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <StatusBadge
-                      status={user.payoutDetails?.isConfigured ? 'APPROVED' : 'PENDING'}
-                      text={user.payoutDetails?.isConfigured ? 'Configured' : 'Not Configured'}
-                    />
-                  </div>
-                  {user.payoutDetails?.isConfigured ? (
-                    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                      <DetailField label="Preferred Method" value={user.payoutDetails.method || '—'} />
-                      <DetailField label="Account Title" value={user.payoutDetails.accountTitle || '—'} mono />
-                      {user.payoutDetails.method === 'Bank Transfer' ? (
-                        <>
-                          <DetailField label="Bank Name" value={user.payoutDetails.bankName || '—'} mono />
-                          <DetailField label="IBAN / Account Number" value={user.payoutDetails.iban || '—'} mono />
-                          <DetailField label="Account Number" value={user.payoutDetails.accountNumber || '—'} mono />
-                        </>
-                      ) : (
-                        <DetailField label="Wallet Number (Mobile)" value={user.payoutDetails.walletNumber || '—'} mono />
-                      )}
-                    </div>
-                  ) : (
-                    <p className="text-[14px] font-medium italic text-[#64748B]">No payout settings configured by seller</p>
-                  )}
-                </div>
-              </DrawerSection>
-            )}
 
             <DrawerSection title="Marketplace Activity" icon={BarChart3}>
               <div className="grid grid-cols-2 gap-3">

@@ -347,15 +347,6 @@ const ManufacturerDashboard = () => {
             color: 'text-purple-600 bg-purple-50 border-purple-100/60',
             href: '/manufacturer/products'
         },
-        {
-            label: 'Pending Orders',
-            value: stats.pendingOrders,
-            change: growthMetrics.pending?.change || null,
-            trend: growthMetrics.pending?.trend || 'neutral',
-            icon: Clock,
-            color: 'text-amber-600 bg-amber-50 border-amber-100/60',
-            href: '/manufacturer/orders?status=pending'
-        },
         // ROW 2
         {
             label: 'Orders Delivered',

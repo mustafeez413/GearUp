@@ -1,6 +1,6 @@
 const Payout = require('../models/Payout');
 
-const APPROVED_STATUSES = ['Paid', 'Approved'];
+const APPROVED_STATUSES = ['Paid', 'Approved', 'Released'];
 const REFUNDED_STATUSES = ['Cancelled', 'Refunded'];
 const HOLDING_STATUSES = ['Pending', 'Holding'];
 

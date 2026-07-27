@@ -68,8 +68,14 @@ const OrdersTable = ({
 
   const renderBadge = (status) => {
     let config = { bg: 'bg-[#FFF7E6]', text: 'text-[#F59E0B]', border: 'border-[#F59E0B]', icon: Clock };
+    const lowerStatus = status?.toLowerCase();
     
-    switch (status?.toLowerCase()) {
+    let displayStatusText = (status || 'PENDING').toUpperCase();
+    if (isPurchases && (lowerStatus === 'delivered' || lowerStatus === 'completed')) {
+      displayStatusText = 'RECEIVED';
+    }
+
+    switch (lowerStatus) {
       case 'processing':
         config = { bg: 'bg-[#EEF2FF]', text: 'text-[#4F46E5]', border: 'border-[#4F46E5]', icon: Activity };
         break;
@@ -89,7 +95,7 @@ const OrdersTable = ({
     return (
       <div className={`inline-flex items-center gap-1.5 px-3 rounded-full border ${config.bg} ${config.text} ${config.border}`} style={{ height: '36px' }}>
         <Icon size={14} className="stroke-[2.5]" />
-        <span className="text-[12px] font-semibold uppercase tracking-wider">{status || 'PENDING'}</span>
+        <span className="text-[12px] font-semibold uppercase tracking-wider">{displayStatusText}</span>
       </div>
     );
   };

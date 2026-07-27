@@ -34,7 +34,7 @@ export const calculateCommission = (price, category) => {
  * @returns {number} Final price including commission
  */
 export const calculateFinalPrice = (price, category) => {
-    return price + calculateCommission(price, category);
+    return price;
 };
 
 /**
@@ -47,18 +47,16 @@ export const calculateFinalPrice = (price, category) => {
 export const calculateBulkCommission = (price, quantity, category) => {
     const unitCommission = calculateCommission(price, category);
     const totalCommission = unitCommission * quantity;
-    const unitFinalPrice = calculateFinalPrice(price, category);
-    const totalAmount = unitFinalPrice * quantity;
     const baseAmount = price * quantity;
 
     return {
         unitPrice: price,
         unitCommission,
-        unitFinalPrice,
+        unitFinalPrice: price,
         quantity,
         baseAmount,
         totalCommission,
-        totalAmount
+        totalAmount: baseAmount
     };
 };
 

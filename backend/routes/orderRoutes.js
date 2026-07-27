@@ -1,17 +1,19 @@
 const express = require('express');
 const { createOrder, getOrders, getOrder, updateOrderStatus, updatePaymentStatus, approveOrder } = require('../controllers/orderController');
-const { protect, authorize } = require('../middleware/authMiddleware');
+const { protect, authorize, requireVerifiedBusiness } = require('../middleware/authMiddleware');
 
 const router = express.Router();
 
 router.use(protect);
 
-// Wholesalers and manufacturers may purchase from other manufacturers (not their own stock).
-router.post('/', authorize('wholesaler', 'manufacturer'), createOrder);
+// Purchasing requires business verification
+router.post('/', requireVerifiedBusiness, authorize('wholesaler', 'manufacturer'), createOrder);
 router.get('/', getOrders);
 router.get('/:id', getOrder);
-router.put('/:id/status', authorize('manufacturer', 'wholesaler'), updateOrderStatus);
-router.put('/:id/payment', updatePaymentStatus);
-router.put('/:id/approve', authorize('wholesaler', 'manufacturer'), approveOrder);
+
+// Order fulfillment and status changes (selling/purchasing actions) require business verification
+router.put('/:id/status', requireVerifiedBusiness, authorize('manufacturer', 'wholesaler'), updateOrderStatus);
+router.put('/:id/payment', requireVerifiedBusiness, updatePaymentStatus);
+router.put('/:id/approve', requireVerifiedBusiness, authorize('wholesaler', 'manufacturer'), approveOrder);
 
 module.exports = router;
