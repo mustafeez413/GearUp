@@ -129,11 +129,15 @@ const ManufacturerOrdersPage = () => {
     const totalOrders = salesOrders.length;
     const pendingOrders = salesOrders.filter(o => {
         const s = o.sellerStats?.find(stat => (stat.seller?._id || stat.seller) === (user?.id || user?._id));
-        return (s?.status || o.status).toLowerCase().startsWith('pending');
+        let status = (s?.status || o.status).toLowerCase();
+        if (status === 'processing' && !o.trackingLog?.some(l => l.message === 'Seller accepted — processing')) status = 'pending';
+        return status.startsWith('pending');
     }).length;
     const processingOrders = salesOrders.filter(o => {
         const s = o.sellerStats?.find(stat => (stat.seller?._id || stat.seller) === (user?.id || user?._id));
-        return (s?.status || o.status).toLowerCase() === 'processing';
+        let status = (s?.status || o.status).toLowerCase();
+        if (status === 'processing' && !o.trackingLog?.some(l => l.message === 'Seller accepted — processing')) status = 'pending';
+        return status === 'processing';
     }).length;
     const deliveredOrders = salesOrders.filter(o => {
         const s = o.sellerStats?.find(stat => (stat.seller?._id || stat.seller) === (user?.id || user?._id));
@@ -172,7 +176,10 @@ const ManufacturerOrdersPage = () => {
         if (status === 'refunded') return sellerRefundsCount;
         return salesOrders.filter(o => {
             const s = o.sellerStats?.find(stat => (stat.seller?._id || stat.seller) === (user?.id || user?._id));
-            const currentStatus = (s?.status || o.status).toLowerCase();
+            let currentStatus = (s?.status || o.status).toLowerCase();
+            if (currentStatus === 'processing' && !o.trackingLog?.some(l => l.message === 'Seller accepted — processing')) {
+                currentStatus = 'pending';
+            }
             if (status === 'delivered') {
                 return currentStatus === 'delivered' || currentStatus === 'completed';
             }
@@ -187,7 +194,10 @@ const ManufacturerOrdersPage = () => {
     const filteredOrders = salesOrders.filter(order => {
         const myStats = order.sellerStats?.find(s => (s.seller?._id || s.seller) === (user?.id || user?._id));
         const myItems = order.items?.filter(i => (i.seller?._id || i.seller) === (user?.id || user?._id)) || [];
-        const myStatus = (myStats?.status || order.status).toLowerCase();
+        let myStatus = (myStats?.status || order.status).toLowerCase();
+        if (myStatus === 'processing' && !order.trackingLog?.some(l => l.message === 'Seller accepted — processing')) {
+            myStatus = 'pending';
+        }
         
         // Tab status filter
         if (filter !== 'all') {
@@ -491,6 +501,12 @@ const ManufacturerOrdersPage = () => {
                                                     const myItems = order.items?.filter(i => (i.seller?._id || i.seller) === (user?.id || user?._id)) || [];
                                                     let myStatus = myStats?.status || order.status;
                                                     
+                                                    let st = (myStats?.status || order.status || '').toLowerCase();
+                                                    if (st === 'processing' && !order.trackingLog?.some(l => l.message === 'Seller accepted — processing')) {
+                                                        st = 'pending';
+                                                    }
+                                                    myStatus = st;
+
                                                     const isPayRefunded = (order.paymentStatus || '').toLowerCase() === 'refunded';
                                                     const isRefunded = isPayRefunded || refundRecords?.some(r => {
                                                         const rId = (r.order?._id || r.order?.id || r.order)?.toString();
@@ -570,14 +586,14 @@ const ManufacturerOrdersPage = () => {
                                                             <td>
                                                                 <div className={`badge-enterprise inline-flex items-center gap-1.5 ${myStatus.toLowerCase() === 'delivered' || myStatus.toLowerCase() === 'completed' ? 'success' : myStatus.toLowerCase() === 'cancelled' || myStatus.toLowerCase() === 'returned' ? 'danger' : myStatus.toLowerCase() === 'shipped' ? 'info' : 'warning'}`}>
                                                                     <StatusIcon size={12} strokeWidth={3} />
-                                                                    {myStatus}
+                                                                    {['pending', 'verified'].includes(myStatus.toLowerCase()) ? 'Pending' : myStatus}
                                                                 </div>
                                                             </td>
 
                                                             {/* Action buttons */}
                                                             <td className="px-6 py-4 align-middle whitespace-nowrap text-right">
                                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                                                                    {!isReadOnlyMode && myStatus.toLowerCase() === 'pending' && !['pending_approval', 'pending approval'].includes(order.paymentStatus?.toLowerCase()) && (
+                                                                    {!isReadOnlyMode && ['pending', 'verified'].includes(myStatus.toLowerCase()) && !['pending_approval', 'pending approval'].includes(order.paymentStatus?.toLowerCase()) && (
                                                                         <button
                                                                             onClick={() => handleStatusUpdate(order._id, 'processing')}
                                                                             className="h-10 w-10 flex items-center justify-center bg-[#E8FFF5] border border-[#00A878]/20 hover:bg-[#00A878] text-[#00A878] hover:text-white rounded-[10px] transition-all cursor-pointer hover:-translate-y-0.5"
@@ -593,15 +609,6 @@ const ManufacturerOrdersPage = () => {
                                                                             title="Mark Shipped"
                                                                         >
                                                                             <Truck size={18} />
-                                                                        </button>
-                                                                    )}
-                                                                    {!isReadOnlyMode && myStatus.toLowerCase() === 'shipped' && (
-                                                                        <button
-                                                                            onClick={() => handleStatusUpdate(order._id, 'delivered')}
-                                                                            className="h-10 w-10 flex items-center justify-center bg-[#E8FFF5] border border-[#00A878]/20 hover:bg-[#00A878] text-[#00A878] hover:text-white rounded-[10px] transition-all cursor-pointer hover:-translate-y-0.5"
-                                                                            title="Mark Delivered"
-                                                                        >
-                                                                            <CheckCircle2 size={18} />
                                                                         </button>
                                                                     )}
                                                                     <button
@@ -650,8 +657,8 @@ const ManufacturerOrdersPage = () => {
                                                             {formattedDate}
                                                         </div>
                                                     </div>
-                                                    <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${config.color}`}>
-                                                        {myStatus}
+                                                    <div className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${config.color} text-center`}>
+                                                        {['pending', 'verified'].includes(myStatus.toLowerCase()) ? 'Pending' : myStatus}
                                                     </div>
                                                 </div>
 
@@ -700,7 +707,7 @@ const ManufacturerOrdersPage = () => {
                                                         Invoice
                                                     </button>
 
-                                                    {!isReadOnlyMode && myStatus.toLowerCase() === 'pending' && !['pending_approval', 'pending approval'].includes(order.paymentStatus?.toLowerCase()) && (
+                                                    {!isReadOnlyMode && ['pending', 'verified'].includes(myStatus.toLowerCase()) && !['pending_approval', 'pending approval'].includes(order.paymentStatus?.toLowerCase()) && (
                                                         <button
                                                             onClick={() => handleStatusUpdate(order._id, 'processing')}
                                                             className="flex-1 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl font-body font-black text-xs uppercase tracking-widest transition-all border border-emerald-100 cursor-pointer"
@@ -714,14 +721,6 @@ const ManufacturerOrdersPage = () => {
                                                             className="flex-1 py-2.5 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-body font-black text-xs uppercase tracking-widest transition-all border border-blue-100 cursor-pointer"
                                                         >
                                                             Mark shipped
-                                                        </button>
-                                                    )}
-                                                    {!isReadOnlyMode && myStatus.toLowerCase() === 'shipped' && (
-                                                        <button
-                                                            onClick={() => handleStatusUpdate(order._id, 'delivered')}
-                                                            className="flex-1 py-2.5 bg-emerald-600 text-white rounded-xl font-body font-black text-xs uppercase tracking-widest transition-all shadow-sm shadow-emerald-500/20 cursor-pointer"
-                                                        >
-                                                            Mark delivered
                                                         </button>
                                                     )}
                                                 </div>

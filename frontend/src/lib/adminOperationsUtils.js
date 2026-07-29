@@ -60,7 +60,7 @@ export function resolvePaymentStatus(order) {
   }
 
   const orderStatus = String(order.status || '').toLowerCase();
-  if (['cancelled', 'refunded'].includes(orderStatus)) return PAYMENT_STATUS.REFUNDED;
+  if (['refunded'].includes(orderStatus)) return PAYMENT_STATUS.REFUNDED;
 
   if (Array.isArray(order.sellerStats) && order.sellerStats.length > 0) {
     const allRefunded = order.sellerStats.every((s) => String(s.status || '').toLowerCase() === 'refunded');

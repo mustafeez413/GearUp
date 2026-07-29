@@ -409,7 +409,7 @@ exports.updateOrderStatus = async (req, res, next) => {
                             grossAmount: stat.subtotal,
                             commission: stat.platformCommission,
                             netAmount: stat.sellerReceivable,
-                            status: 'Holding',
+                            status: 'Held',
                             buyerTransactionId: order.transactionReference || order.stripePaymentIntentId || null,
                             notes: 'Escrow holding — awaiting automatic settlement'
                         });
@@ -439,6 +439,9 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         } else if (order.buyer?.toString() === req.user.id) {
             // Buyer action (e.g. Confirming Delivery or Cancelling)
+            if (normalizedStatus === 'processing') {
+                return res.status(400).json({ success: false, error: 'Only the seller can accept the order' });
+            }
             const isCancel = normalizedStatus === 'cancelled';
             const targetStatus = isCancel ? 'cancelled' : 'completed';
 
@@ -463,6 +466,32 @@ exports.updateOrderStatus = async (req, res, next) => {
                 return res.status(403).json({ success: false, error: 'Not authorized to update this order' });
             }
             if (normalizedStatus) {
+                // Enforce seller-driven acceptance: only allow moving into processing
+                // when the seller portion is still in the waiting states.
+                if (normalizedStatus === 'processing') {
+                    const prevSellerStatus = String(sellerStat.status || '').toLowerCase();
+                    const waitingForSellerAcceptance = ['pending', 'verified'];
+                    const hasSellerAccepted = (order.trackingLog || []).some(log => log.message === 'Seller accepted — processing');
+                    if (!waitingForSellerAcceptance.includes(prevSellerStatus) && !(prevSellerStatus === 'processing' && !hasSellerAccepted)) {
+                        return res.status(400).json({
+                            success: false,
+                            error: 'Order is not waiting for seller acceptance'
+                        });
+                    }
+                } else if (normalizedStatus === 'shipped') {
+                    const prevSellerStatus = String(sellerStat.status || '').toLowerCase();
+                    if (prevSellerStatus !== 'processing') {
+                        return res.status(400).json({
+                            success: false,
+                            error: 'Order must be accepted before it can be shipped'
+                        });
+                    }
+                } else if (normalizedStatus === 'delivered' || normalizedStatus === 'completed') {
+                    return res.status(400).json({
+                        success: false,
+                        error: 'Only the buyer can confirm receipt of the order'
+                    });
+                }
                 sellerStat.status = normalizedStatus;
                 if (normalizedStatus === 'delivered') {
                     sellerStat.deliveredAt = new Date();
@@ -492,9 +521,18 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        if (order.status === 'cancelled' || normalizedStatus === 'cancelled' || order.status === 'Cancelled') {
+        if (normalizedStatus === 'cancelled') {
             const Transaction = require('../models/Transaction');
+            const Payout = require('../models/Payout');
+            const cancelQuery = { order: order._id };
+            if (targetSellerId) cancelQuery.seller = targetSellerId;
+            await Transaction.updateMany(cancelQuery, { status: 'Failed' });
+            await Payout.updateMany(cancelQuery, { status: 'Cancelled' });
+        } else if (order.status === 'cancelled' || order.status === 'Cancelled') {
+            const Transaction = require('../models/Transaction');
+            const Payout = require('../models/Payout');
             await Transaction.updateMany({ order: order._id }, { status: 'Failed' });
+            await Payout.updateMany({ order: order._id }, { status: 'Cancelled' });
         }
 
         const buyerConfirmedDelivery =
@@ -511,13 +549,6 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         }
 
-        // Auto-release payouts for completed seller sub-orders
-        try {
-            const { releaseOrderPaymentTransactionally } = require('../utils/payoutSync');
-            await releaseOrderPaymentTransactionally(order._id);
-        } catch (payoutErr) {
-            console.error('[payout] auto-release on order update:', payoutErr.message);
-        }
 
         await order.save();
 
@@ -559,6 +590,42 @@ exports.updateOrderStatus = async (req, res, next) => {
             }
         } catch (emailErr) {
             console.error('[EMAIL] Failed to send status update notification:', emailErr);
+        }
+
+        // Platform Notifications
+        try {
+            const adminUsers = await User.find({ role: 'admin' });
+            if (normalizedStatus === 'processing') {
+                // Notify Buyer
+                await createNotification(order.buyer, `Order #${order._id.toString().slice(-6)} is being processed.`, 'order', `/wholesaler/orders/${order._id}`);
+                // Notify Admin
+                for (const admin of adminUsers) {
+                    await createNotification(admin._id, `Order #${order._id.toString().slice(-6)} is being processed by the seller.`, 'system', `/admin/orders`);
+                }
+            } else if (normalizedStatus === 'shipped') {
+                // Notify Buyer
+                await createNotification(order.buyer, `Order #${order._id.toString().slice(-6)} has been shipped.`, 'order', `/wholesaler/orders/${order._id}`);
+                // Notify Admin
+                for (const admin of adminUsers) {
+                    await createNotification(admin._id, `Order #${order._id.toString().slice(-6)} has been shipped by the seller.`, 'system', `/admin/orders`);
+                }
+            } else if (normalizedStatus === 'delivered' || normalizedStatus === 'completed') {
+                if (order.buyer?.toString() === req.user.id) {
+                    // Notify Admin
+                    for (const admin of adminUsers) {
+                        await createNotification(admin._id, `Order #${order._id.toString().slice(-6)} received by buyer. Payment can be released.`, 'alert', `/admin/payouts`);
+                    }
+                }
+            } else if (normalizedStatus === 'cancelled') {
+                // Notify Buyer
+                await createNotification(order.buyer, `Order #${order._id.toString().slice(-6)} has been cancelled.`, 'alert', `/wholesaler/orders/${order._id}`);
+                // Notify Admin
+                for (const admin of adminUsers) {
+                    await createNotification(admin._id, `Order #${order._id.toString().slice(-6)} has been cancelled.`, 'alert', `/admin/orders`);
+                }
+            }
+        } catch (notifErr) {
+            console.error('[NOTIF] Failed to send status update notification:', notifErr);
         }
 
         res.status(200).json({ success: true, data: order });
@@ -603,7 +670,7 @@ exports.updatePaymentStatus = async (req, res, next) => {
             if (normalizedPaymentStatus === 'verified' || normalizedPaymentStatus === 'Payment Verified') {
                 order.paymentStatus = 'verified';
                 order.isPaymentVerified = true;
-                order.status = 'processing'; // Automatically move order to processing state!
+                order.status = 'verified'; // changed from processing, wait for seller to accept
                 
                 // Automate Platform Commission Deduction & Payout Generation
                 const Payout = require('../models/Payout');
@@ -615,7 +682,7 @@ exports.updatePaymentStatus = async (req, res, next) => {
                     const sellerId = (stat.seller?._id || stat.seller)?.toString();
                     const loggedInUserId = (req.user.id || req.user._id)?.toString();
                     if (req.user.role === 'admin' || sellerId === loggedInUserId) {
-                        return { ...stat.toObject(), status: 'processing' };
+                        return { ...stat.toObject(), status: 'verified' };
                     }
                     return stat;
                 });
@@ -702,7 +769,11 @@ exports.approveOrder = async (req, res, next) => {
             return res.status(400).json({ success: false, error: 'Order can only be confirmed after payment verification' });
         }
 
-        order.status = 'processing';
+        // Buyer confirmation should NOT move the order into seller "processing".
+        // Sellers must explicitly accept before processing begins.
+        if (String(order.status || '').toLowerCase() !== 'processing') {
+            order.status = 'verified';
+        }
         await order.save();
 
         res.status(200).json({ success: true, data: order });

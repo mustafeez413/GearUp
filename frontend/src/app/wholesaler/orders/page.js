@@ -116,6 +116,30 @@ const WholesalerOrdersPage = () => {
         });
     }, [fetchOrders]);
 
+    const handleOrderReceived = async (orderId) => {
+        if (!confirm('Are you sure you have received this order?')) return;
+        try {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${getApiBaseUrl()}/api/orders/${orderId}/status`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ status: 'delivered' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                fetchOrders();
+            } else {
+                alert(data.error || 'Failed to update order status');
+            }
+        } catch (err) {
+            console.error(err);
+            alert('Failed to update order status');
+        }
+    };
+
     const purchaseOrders = useMemo(() => {
         return orders.filter((order) => isBuyerOnOrder(order, userId));
     }, [orders, userId]);
@@ -157,7 +181,11 @@ const WholesalerOrdersPage = () => {
                     });
                 });
             } else {
-                result = result.filter(order => order.status?.toLowerCase() === filter.toLowerCase());
+                result = result.filter(order => {
+                    let st = (order.status || '').toLowerCase();
+                    if (st === 'processing' && !order.trackingLog?.some(l => l.message === 'Seller accepted — processing')) st = 'pending';
+                    return st === filter.toLowerCase();
+                });
             }
         }
 
@@ -397,6 +425,9 @@ const WholesalerOrdersPage = () => {
                                                     if (isRefunded && (displayStatus.toLowerCase() === 'delivered' || displayStatus.toLowerCase() === 'completed')) {
                                                         displayStatus = 'Returned';
                                                     }
+                                                    if (displayStatus === 'processing' && !order.trackingLog?.some(l => l.message === 'Seller accepted — processing')) {
+                                                        displayStatus = 'pending';
+                                                    }
                                                     
                                                     const statusStyle = getStatusStyle(displayStatus);
 
@@ -457,13 +488,23 @@ const WholesalerOrdersPage = () => {
                                                             {/* Status Badge */}
                                                             <td>
                                                                 <div className={`badge-enterprise inline-flex ${displayStatus.toLowerCase() === 'delivered' || displayStatus.toLowerCase() === 'paid' ? 'success' : displayStatus.toLowerCase() === 'shipped' ? 'info' : displayStatus.toLowerCase() === 'cancelled' || displayStatus.toLowerCase() === 'returned' ? 'danger' : 'warning'}`}>
-                                                                    {displayStatus.toLowerCase() === 'delivered' ? 'Received' : displayStatus}
+                                                                    {['pending', 'verified'].includes(displayStatus.toLowerCase()) ? 'Waiting for Seller Response' : displayStatus.toLowerCase() === 'delivered' ? 'Received' : displayStatus}
                                                                 </div>
                                                             </td>
 
                                                             {/* Action buttons */}
                                                             <td className="px-6 py-4 align-middle whitespace-nowrap text-right">
                                                                 <div className="flex items-center justify-end gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                                                                    {displayStatus.toLowerCase() === 'shipped' && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={() => handleOrderReceived(order._id)}
+                                                                            className="h-10 px-3 flex items-center justify-center bg-[#E8FFF5] border border-[#00A878]/20 hover:bg-[#00A878] text-[#00A878] hover:text-white rounded-[10px] transition-all cursor-pointer hover:-translate-y-0.5 font-bold text-[11px] uppercase tracking-wider"
+                                                                            title="Order Received"
+                                                                        >
+                                                                            <CheckCircle size={16} className="mr-1" /> Order Received
+                                                                        </button>
+                                                                    )}
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleReorder(order.items)}
@@ -527,8 +568,8 @@ const WholesalerOrdersPage = () => {
                                                             {formattedDate}
                                                         </div>
                                                     </div>
-                                                    <div className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${statusStyle}`}>
-                                                        {displayStatus.toLowerCase() === 'delivered' ? 'Received' : displayStatus}
+                                                    <div className={`px-2.5 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest border ${statusStyle} text-center`}>
+                                                        {['pending', 'verified'].includes(displayStatus.toLowerCase()) ? 'Waiting for Seller Response' : displayStatus.toLowerCase() === 'delivered' ? 'Received' : displayStatus}
                                                     </div>
                                                 </div>
 
@@ -565,7 +606,16 @@ const WholesalerOrdersPage = () => {
                                                     </div>
                                                 </div>
 
-                                                <div className="flex gap-2 pt-3 border-t border-slate-50">
+                                                <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-50">
+                                                    {displayStatus.toLowerCase() === 'shipped' && (
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => handleOrderReceived(order._id)}
+                                                            className="flex-[1_1_100%] py-2.5 bg-[#E8FFF5] hover:bg-[#00A878] text-[#00A878] hover:text-white border border-[#00A878]/20 rounded-xl font-sans font-bold text-[11px] uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center"
+                                                        >
+                                                            <CheckCircle size={14} className="mr-1.5" /> Order Received
+                                                        </button>
+                                                    )}
                                                     <button
                                                         type="button"
                                                         onClick={() => handleReorder(order.items)}

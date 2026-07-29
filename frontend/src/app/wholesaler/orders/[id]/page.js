@@ -40,7 +40,8 @@ function getOrderItemSellerId(item) {
 
 function buildOrderTracking(o) {
     if (o.trackingLog?.length) {
-        return o.trackingLog.map((e) => ({
+        const filtered = o.trackingLog.filter(e => e.message !== 'Order confirmed — sellers notified');
+        return filtered.map((e) => ({
             label: e.message || e.status,
             status: e.status,
             completed: true,
@@ -140,6 +141,14 @@ const WholesalerOrderDetailsPage = ({ params }) => {
                     transactionReference: o.transactionReference || '',
                     tracking: buildOrderTracking(o)
                 };
+                
+                // Override status if it was auto-processed by webhook but seller hasn't actually accepted
+                const hasSellerAccepted = (o.trackingLog || []).some(log => log.message === 'Seller accepted — processing');
+                const isAutoProcessed = mappedOrder.status === 'processing' && !hasSellerAccepted;
+                if (isAutoProcessed) {
+                    mappedOrder.status = 'verified';
+                }
+
                 setOrder(mappedOrder);
             } else {
                 throw new Error(data.error || 'Failed to load order data');
@@ -376,10 +385,16 @@ const WholesalerOrderDetailsPage = ({ params }) => {
         } else if (['cancelled', 'rejected', 'refunded', 'disputed', 'open'].some(s => text.includes(s))) {
             bgClass = 'bg-rose-50 text-rose-700 border-rose-200';
         }
+
+        let displayStatus = labelText || status;
+        if (text === 'pending' || text === 'verified') {
+            displayStatus = 'Waiting for Seller Response';
+            bgClass = 'bg-amber-50 text-amber-700 border-amber-200';
+        }
         
         return (
             <span className={`inline-flex items-center justify-center px-3 py-1 text-xs font-bold uppercase tracking-wider rounded-full border ${bgClass} h-6`}>
-                {labelText || status}
+                {displayStatus}
             </span>
         );
     };
@@ -408,7 +423,7 @@ const WholesalerOrderDetailsPage = ({ params }) => {
                     >
                         View Invoice
                     </button>
-                    {order && ['shipped', 'processing'].includes(order.status?.toLowerCase()) && (
+                    {order && ['shipped'].includes(order.status?.toLowerCase()) && (
                         <button
                             type="button"
                             onClick={handleConfirmDelivery}

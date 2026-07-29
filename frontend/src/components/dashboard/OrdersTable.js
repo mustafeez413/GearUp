@@ -73,6 +73,10 @@ const OrdersTable = ({
     let displayStatusText = (status || 'PENDING').toUpperCase();
     if (isPurchases && (lowerStatus === 'delivered' || lowerStatus === 'completed')) {
       displayStatusText = 'RECEIVED';
+    } else if (isPurchases && (lowerStatus === 'pending' || lowerStatus === 'verified')) {
+      displayStatusText = 'WAITING FOR SELLER RESPONSE';
+    } else if (!isPurchases && (lowerStatus === 'pending' || lowerStatus === 'verified')) {
+      displayStatusText = 'PENDING';
     }
 
     switch (lowerStatus) {

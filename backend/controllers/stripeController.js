@@ -125,19 +125,18 @@ exports.handleWebhook = async (req, res) => {
             // Update order payment status to Paid
             order.paymentStatus = 'Paid';
             order.isPaymentVerified = true;
-            order.status = 'processing';
+            order.status = 'verified';
             order.stripeTransactionId = paymentIntent.latest_charge || paymentIntent.id;
             order.transactionReference = paymentIntent.id;
 
             // Update each seller portion status
             order.sellerStats = order.sellerStats.map(stat => {
-                stat.status = 'processing';
+                stat.status = 'verified';
                 return stat;
             });
 
             const trackingUser = { id: order.buyer, role: 'wholesaler' };
             appendTrackingLog(order, 'verified', trackingUser, 'Card payment verified via Stripe');
-            appendTrackingLog(order, 'processing', trackingUser, 'Order confirmed — sellers notified');
             
             await order.save();
 
@@ -151,7 +150,7 @@ exports.handleWebhook = async (req, res) => {
                         grossAmount: stat.subtotal,
                         commission: stat.platformCommission,
                         netAmount: stat.sellerReceivable,
-                        status: 'Holding',
+                        status: 'Held',
                         buyerTransactionId: paymentIntent.id,
                         notes: 'Escrow holding — automatic settlement on delivery'
                     });

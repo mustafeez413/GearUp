@@ -253,7 +253,7 @@ exports.updateCommissionSettings = async (req, res, next) => {
         // Audit log trail
         await AuditLog.create({
             action: 'Update commission policy & rules',
-            performedBy: req.user.id,
+            performedBy: req.user._id,
             targetEntity: 'settings',
             status: 'success'
         });
@@ -401,14 +401,14 @@ exports.createRefund = async (req, res, next) => {
 
         // Ensure commission transactions exist (wallet / legacy orders may lack them)
         let txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid', 'Held', 'Released'] } });
-        if (txs.length === 0 && (order.isPaymentVerified || ['verified', 'Held'].includes(order.paymentStatus))) {
+        const paidStatuses = ['verified', 'held', 'paid', 'payment verified'];
+        if (txs.length === 0 && (order.isPaymentVerified || paidStatuses.includes(String(order.paymentStatus).toLowerCase()))) {
             await recordOrderPaymentTransactions(order);
             txs = await Transaction.find({ order: orderId, status: { $in: ['Completed', 'Pending', 'Hold', 'Paid', 'Held', 'Released'] } });
         }
-        if (txs.length === 0) {
-            return res.status(400).json({ success: false, error: 'No active transaction found for this order' });
+        if (!order.isPaymentVerified && !paidStatuses.includes(String(order.paymentStatus).toLowerCase())) {
+            return res.status(400).json({ success: false, error: 'Cannot refund an order that has not been paid.' });
         }
-
         // Call Stripe Refund API if paid via card_payment
         if (order.paymentMethod === 'card_payment' && order.stripePaymentIntentId) {
             try {
@@ -426,21 +426,50 @@ exports.createRefund = async (req, res, next) => {
         const { refundOrderTransactionally } = require('../utils/payoutSync');
         const refunds = await refundOrderTransactionally(orderId, reason || 'Customer requested refund');
 
-        // Email Automation: Notify Buyer of Refund
+        // Platform & Email Notifications: Notify Buyer and Seller of Refund
         try {
             const populatedOrder = await Order.findById(orderId).populate('buyer', 'email name');
-            if (populatedOrder && populatedOrder.buyer && populatedOrder.buyer.email) {
-                await sendEmail({
-                    email: populatedOrder.buyer.email,
-                    subject: `Order Refunded - #${orderId.slice(-6)}`,
-                    html: `<h3>Refund Processed</h3>
-                           <p>Hi ${populatedOrder.buyer.name},</p>
-                           <p>We have processed a refund for your order <b>#${orderId.slice(-6)}</b>.</p>
-                           <p><b>Reason:</b> ${reason || 'Customer requested refund'}</p>
-                           <p>The funds will be returned to your original payment method within the standard banking days.</p>`
-                });
+            if (populatedOrder) {
+                const { createNotification } = require('./notificationController');
+                
+                if (populatedOrder.buyer) {
+                    // Notify Buyer
+                    await createNotification(
+                        populatedOrder.buyer._id,
+                        `Your order #${orderId.slice(-6)} has been refunded. Reason: ${reason || 'Customer requested refund'}`,
+                        'alert',
+                        `/wholesaler/orders/${orderId}`
+                    );
+
+                    // Email Buyer
+                    if (populatedOrder.buyer.email) {
+                        await sendEmail({
+                            email: populatedOrder.buyer.email,
+                            subject: `Order Refunded - #${orderId.slice(-6)}`,
+                            html: `<h3>Refund Processed</h3>
+                                   <p>Hi ${populatedOrder.buyer.name},</p>
+                                   <p>We have processed a refund for your order <b>#${orderId.slice(-6)}</b>.</p>
+                                   <p><b>Reason:</b> ${reason || 'Customer requested refund'}</p>
+                                   <p>The funds will be returned to your original payment method within the standard banking days.</p>`
+                        });
+                    }
+                }
+
+                // Notify Sellers
+                for (const stat of populatedOrder.sellerStats || []) {
+                    if (stat.seller) {
+                        await createNotification(
+                            stat.seller,
+                            `Order #${orderId.slice(-6)} has been refunded to the buyer.`,
+                            'alert',
+                            `/manufacturer/orders/${orderId}`
+                        );
+                    }
+                }
             }
-        } catch (emailErr) {}
+        } catch (emailErr) {
+            console.error('[NOTIF] Failed to send refund notification:', emailErr);
+        }
 
         await AuditLog.create({
             action: `Initiate order refund for order #${orderId}`,

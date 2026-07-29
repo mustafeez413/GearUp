@@ -491,13 +491,22 @@ exports.releasePayout = async (req, res) => {
         await payout.save();
 
         // Notify Seller
+        // Notify Seller and Buyer
         try {
-            await createNotification({
-                user: seller._id,
-                title: 'Payment Released',
-                message: `Payment of PKR ${payout.netAmount.toLocaleString()} for Order #${order.orderNumber || String(order._id).slice(-6)} has been released.`,
-                type: 'payout'
-            });
+            await createNotification(
+                seller._id,
+                `Payment of PKR ${payout.netAmount.toLocaleString()} for Order #${order.orderNumber || String(order._id).slice(-6)} has been released.`,
+                'order',
+                `/manufacturer/orders/${order._id}`
+            );
+            if (order.buyer) {
+                await createNotification(
+                    order.buyer,
+                    `Payment for Order #${order.orderNumber || String(order._id).slice(-6)} has been successfully released to the seller.`,
+                    'order',
+                    `/wholesaler/orders/${order._id}`
+                );
+            }
         } catch (notifErr) {
             console.warn('[payout-notification-warning]', notifErr.message);
         }

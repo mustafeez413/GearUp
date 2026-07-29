@@ -117,7 +117,16 @@ const OrderDetailsPage = ({ params }) => {
                     paymentStatus: o.paymentStatus || 'pending',
                     paymentProof: o.paymentProof || null,
                     transactionReference: o.transactionReference || '',
+                    trackingLog: o.trackingLog || [],
                 };
+                
+                // Override status if it was auto-processed by webhook but seller hasn't actually accepted
+                const hasSellerAccepted = (o.trackingLog || []).some(log => log.message === 'Seller accepted — processing');
+                const isAutoProcessed = mappedOrder.status === 'processing' && !hasSellerAccepted;
+                if (isAutoProcessed) {
+                    mappedOrder.status = 'verified';
+                }
+
                 setOrder(mappedOrder);
             } else {
                 throw new Error(data.error || 'The requested order could not be located.');
@@ -193,9 +202,9 @@ const OrderDetailsPage = ({ params }) => {
             'Shipped': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100', icon: Truck, label: 'Shipped' },
             'Completed': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', icon: CheckCircle2, label: 'Completed' },
             'Cancelled': { bg: 'bg-red-50', text: 'text-red-700', border: 'border-red-100', icon: AlertCircle, label: 'Cancelled' },
-            'pending': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', icon: Clock, label: 'Pending Payment' },
+            'pending': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', icon: Clock, label: 'Pending' },
             'pending_approval': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: Activity, label: 'Pending Approval' },
-            'verified': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', icon: ShieldCheck, label: 'Payment Held In Escrow' },
+            'verified': { bg: 'bg-amber-50', text: 'text-amber-700', border: 'border-amber-100', icon: Clock, label: 'Pending' },
             'processing': { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-100', icon: Package, label: 'Processing' },
             'shipped': { bg: 'bg-indigo-50', text: 'text-indigo-700', border: 'border-indigo-100', icon: Truck, label: 'Shipped' },
             'delivered': { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-100', icon: CheckCircle2, label: 'Delivered' },
@@ -400,7 +409,7 @@ const OrderDetailsPage = ({ params }) => {
                                     </div>
                                 )}
 
-                                {['pending'].includes((order.status || '').toLowerCase()) && !['pending_approval', 'pending approval'].includes((order.paymentStatus || '').toLowerCase()) && (
+                                {['pending', 'verified'].includes((order.status || '').toLowerCase()) && !['pending_approval', 'pending approval'].includes((order.paymentStatus || '').toLowerCase()) && (
                                     <button 
                                         disabled={updatingStatus} 
                                         onClick={() => handleUpdateStatus('processing')} 
@@ -417,16 +426,6 @@ const OrderDetailsPage = ({ params }) => {
                                         className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
                                     >
                                         2. Mark as shipped
-                                    </button>
-                                )}
-
-                                {['shipped'].includes((order.status || '').toLowerCase()) && (
-                                    <button 
-                                        disabled={updatingStatus} 
-                                        onClick={() => handleUpdateStatus('delivered')} 
-                                        className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-heading font-bold text-xs uppercase tracking-wider transition-colors cursor-pointer"
-                                    >
-                                        3. Mark as delivered (releases wallet)
                                     </button>
                                 )}
 

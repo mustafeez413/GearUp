@@ -45,6 +45,7 @@ export default function AdminPayoutsPage() {
     const [search, setSearch] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
     const [releasingId, setReleasingId] = useState(null);
+    const [refundingId, setRefundingId] = useState(null);
     const [actionError, setActionError] = useState(null);
     const [actionSuccess, setActionSuccess] = useState(null);
 
@@ -114,6 +115,37 @@ export default function AdminPayoutsPage() {
             setActionError('An error occurred while releasing payout.');
         } finally {
             setReleasingId(null);
+        }
+    };
+
+    const handleRefundBuyer = async (payout) => {
+        if (!confirm(`Are you sure you want to refund this cancelled order to the buyer? This will reverse the payment.`)) return;
+
+        try {
+            setRefundingId(payout._id);
+            setActionError(null);
+            setActionSuccess(null);
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${getApiBaseUrl()}/api/transactions/admin/refunds`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ orderId: payout.order?._id, reason: 'Admin requested refund for cancelled order' })
+            });
+            const data = await res.json();
+            if (data.success) {
+                setActionSuccess('Refund processed successfully.');
+                fetchPayouts();
+            } else {
+                setActionError(data.error || 'Failed to process refund.');
+            }
+        } catch (err) {
+            console.error('[refund-buyer-err]', err);
+            setActionError('An error occurred while processing the refund.');
+        } finally {
+            setRefundingId(null);
         }
     };
 
@@ -215,7 +247,7 @@ export default function AdminPayoutsPage() {
             )}
 
             {/* KPI Cards Header */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Pending Release</span>
                     <span className="text-2xl font-extrabold text-amber-600 tracking-tight">{formatPKR(metrics.totalPending)}</span>
@@ -227,10 +259,6 @@ export default function AdminPayoutsPage() {
                 <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Held Payouts</span>
                     <span className="text-2xl font-extrabold text-purple-600 tracking-tight">{formatPKR(metrics.totalHeld)}</span>
-                </div>
-                <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Failed Payouts</span>
-                    <span className="text-2xl font-extrabold text-red-600 tracking-tight">{formatPKR(metrics.totalFailed)}</span>
                 </div>
             </div>
 
@@ -276,7 +304,7 @@ export default function AdminPayoutsPage() {
                                 <th className="py-4 px-6 text-right">Commission</th>
                                 <th className="py-4 px-6 text-right">Net Payout</th>
                                 <th className="py-4 px-6 text-center">Stripe Status</th>
-                                <th className="py-4 px-6 text-center">Payout Status</th>
+                                <th className="py-4 px-6 text-center">Workflow Status</th>
                                 <th className="py-4 px-6 text-center">Actions</th>
                             </tr>
                         </thead>
@@ -301,6 +329,28 @@ export default function AdminPayoutsPage() {
                                     const sellerRole = seller.role || 'seller';
                                     const sellerLink = sellerRole === 'manufacturer' ? '/admin/manufacturers' : '/admin/wholesalers';
                                     const displayStatus = normalizeStatus(p.status);
+
+                                    const orderStatus = order.status ? order.status.toLowerCase() : '';
+                                    const isOrderDelivered = orderStatus === 'delivered' || orderStatus === 'completed';
+                                    const isOrderCancelled = orderStatus === 'cancelled';
+
+                                    let workflowMessage = "Waiting for Seller Response";
+                                    if (isOrderCancelled) {
+                                        workflowMessage = "Order Cancelled - Refund Required";
+                                        if (String(order.paymentStatus).toLowerCase() === 'refunded') {
+                                            workflowMessage = "Order Cancelled - Refund Processed";
+                                        }
+                                    } else if (displayStatus === 'Released') {
+                                        workflowMessage = "Payment Successfully Released";
+                                    } else if (orderStatus === 'processing' || orderStatus === 'accepted') {
+                                        workflowMessage = "Order is Being Processed";
+                                    } else if (orderStatus === 'shipped') {
+                                        workflowMessage = "Order Shipped - Waiting for Buyer Confirmation";
+                                    } else if (isOrderDelivered) {
+                                        workflowMessage = "Order Delivered - Ready for Payment Release";
+                                    } else if (orderStatus === 'pending' || orderStatus === 'pending_approval' || orderStatus === 'pending approval' || orderStatus === 'verified' || !orderStatus) {
+                                        workflowMessage = "Waiting for Seller Response";
+                                    }
 
                                     return (
                                         <tr key={p._id} className="hover:bg-slate-50/60 transition-colors">
@@ -351,36 +401,44 @@ export default function AdminPayoutsPage() {
 
                                             <td className="py-4 px-6 text-center">
                                                 {isDisputed ? (
-                                                    <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded-full text-[10px] font-extrabold uppercase tracking-wider" title={p.disputeHoldReason}>
-                                                        <ShieldAlert size={12} /> Held Due To Dispute
+                                                    <span className="inline-flex flex-col items-center gap-1 px-2.5 py-1.5 bg-rose-50 text-rose-700 border border-rose-200 rounded-xl text-[10px] font-extrabold uppercase tracking-wider" title={p.disputeHoldReason}>
+                                                        <span className="flex items-center gap-1"><ShieldAlert size={12} /> Held Due To Dispute</span>
                                                     </span>
                                                 ) : (
-                                                    <span className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                                        displayStatus === 'Released' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
-                                                        displayStatus === 'Held' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
-                                                        displayStatus === 'Failed' ? 'bg-red-50 text-red-700 border border-red-200' :
-                                                        displayStatus === 'Cancelled' ? 'bg-slate-100 text-slate-600 border border-slate-300' :
-                                                        'bg-amber-50 text-amber-700 border border-amber-200'
-                                                    }`}>
-                                                        {displayStatus}
-                                                    </span>
+                                                    <div className="flex flex-col items-center gap-1.5">
+                                                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
+                                                            displayStatus === 'Released' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                                            displayStatus === 'Held' ? 'bg-purple-50 text-purple-700 border border-purple-200' :
+                                                            displayStatus === 'Failed' ? 'bg-red-50 text-red-700 border border-red-200' :
+                                                            displayStatus === 'Cancelled' || displayStatus === 'Refunded' ? 'bg-slate-100 text-slate-600 border border-slate-300' :
+                                                            'bg-amber-50 text-amber-700 border border-amber-200'
+                                                        }`}>
+                                                            PAYMENT: {displayStatus}
+                                                        </span>
+                                                        <span className="text-[10px] font-bold text-slate-700 text-center max-w-[140px] leading-tight">
+                                                            {workflowMessage}
+                                                        </span>
+                                                    </div>
                                                 )}
                                             </td>
 
                                             <td className="py-4 px-6 text-center">
                                                 <div className="flex items-center justify-center gap-2">
                                                     {/* PENDING STATUS ACTIONS */}
-                                                    {displayStatus === 'Pending' && (
+                                                    {displayStatus === 'Pending' && !isOrderCancelled && (
                                                         <>
-                                                            <button
-                                                                onClick={() => handleReleasePayout(p)}
-                                                                disabled={releasingId === p._id}
-                                                                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 disabled:opacity-50"
-                                                            >
-                                                                {releasingId === p._id ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />}
-                                                                Release Payment
-                                                            </button>
-
+                                                            {isOrderDelivered && (
+                                                                <button
+                                                                    onClick={() => handleReleasePayout(p)}
+                                                                    disabled={isDisputed || releasingId === p._id}
+                                                                    className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 ${
+                                                                        isDisputed ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                    }`}
+                                                                >
+                                                                    {isDisputed ? <Lock size={12} /> : (releasingId === p._id ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />)}
+                                                                    Release Payment
+                                                                </button>
+                                                            )}
                                                             <button
                                                                 onClick={() => setViewDetailsPayout(p)}
                                                                 className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
@@ -399,18 +457,20 @@ export default function AdminPayoutsPage() {
                                                     )}
 
                                                     {/* HELD STATUS ACTIONS */}
-                                                    {displayStatus === 'Held' && (
+                                                    {displayStatus === 'Held' && !isOrderCancelled && (
                                                         <>
-                                                            <button
-                                                                onClick={() => handleReleasePayout(p)}
-                                                                disabled={isDisputed || releasingId === p._id}
-                                                                className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 ${
-                                                                    isDisputed ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-                                                                }`}
-                                                            >
-                                                                {isDisputed ? <Lock size={12} /> : <Send size={12} />}
-                                                                Release Payment
-                                                            </button>
+                                                            {isOrderDelivered && (
+                                                                <button
+                                                                    onClick={() => handleReleasePayout(p)}
+                                                                    disabled={isDisputed || releasingId === p._id}
+                                                                    className={`px-3 py-1.5 rounded-lg font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 ${
+                                                                        isDisputed ? 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200' : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                                                                    }`}
+                                                                >
+                                                                    {isDisputed ? <Lock size={12} /> : <Send size={12} />}
+                                                                    Release Payment
+                                                                </button>
+                                                            )}
 
                                                             <button
                                                                 onClick={() => handleUnholdPayout(p._id)}
@@ -429,8 +489,28 @@ export default function AdminPayoutsPage() {
                                                         </>
                                                     )}
 
+                                                    {/* CANCELLED ACTIONS */}
+                                                    {isOrderCancelled && String(order.paymentStatus).toLowerCase() !== 'refunded' && (order.isPaymentVerified || ['paid', 'payment verified', 'verified', 'held'].includes(String(order.paymentStatus).toLowerCase())) && (
+                                                        <>
+                                                            <button
+                                                                onClick={() => handleRefundBuyer(p)}
+                                                                disabled={refundingId === p._id}
+                                                                className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700 text-white rounded-lg font-bold text-[11px] uppercase tracking-wider shadow-sm transition-all flex items-center gap-1 disabled:opacity-50"
+                                                            >
+                                                                {refundingId === p._id ? <RefreshCw size={12} className="animate-spin" /> : <RotateCcw size={12} />}
+                                                                Refund Buyer
+                                                            </button>
+                                                            <button
+                                                                onClick={() => setViewDetailsPayout(p)}
+                                                                className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg text-xs font-bold transition-colors flex items-center gap-1"
+                                                            >
+                                                                <Eye size={14} /> View Details
+                                                            </button>
+                                                        </>
+                                                    )}
+
                                                     {/* FAILED STATUS ACTIONS */}
-                                                    {displayStatus === 'Failed' && (
+                                                    {displayStatus === 'Failed' && !isOrderCancelled && (
                                                         <>
                                                             <button
                                                                 onClick={() => handleReleasePayout(p)}

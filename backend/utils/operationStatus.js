@@ -376,7 +376,7 @@ async function reconcilePayoutRecord(payout, ctx) {
         updates.netAmount = 0;
     }
 
-    const stored = String(payout.status || '');
+
     const needsUpdate =
         stored !== resolved
         || (resolved === PAYOUT_STATUS.REFUNDED && payout.netAmount !== 0);

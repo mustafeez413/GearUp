@@ -225,25 +225,11 @@ export default function StripeConnectPayoutCard() {
             </div>
 
             {/* Earnings Summary Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Available Balance</span>
                     <span className="text-2xl font-extrabold text-emerald-600 tracking-tight">
                         {formatPKR(earningsData?.summary?.availableBalance || 0)}
-                    </span>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Pending Balance</span>
-                    <span className="text-2xl font-extrabold text-amber-600 tracking-tight">
-                        {formatPKR(earningsData?.summary?.pendingBalance || 0)}
-                    </span>
-                </div>
-
-                <div className="bg-white p-6 rounded-2xl border border-slate-200/80 shadow-sm">
-                    <span className="text-xs font-bold uppercase tracking-wider text-slate-400 block mb-2">Lifetime Earnings</span>
-                    <span className="text-2xl font-extrabold text-slate-900 tracking-tight">
-                        {formatPKR(earningsData?.summary?.lifetimeEarnings || 0)}
                     </span>
                 </div>
 

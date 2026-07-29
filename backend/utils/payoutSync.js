@@ -158,7 +158,7 @@ async function refundOrderTransactionally(orderId, reason = 'Customer requested 
     }
 }
 
-async function releaseOrderPaymentTransactionally(orderId) {
+async function releaseOrderPaymentTransactionally(orderId, sellerId = null) {
     let session = null;
     try {
         session = await mongoose.startSession();
@@ -182,15 +182,21 @@ async function releaseOrderPaymentTransactionally(orderId) {
         }
 
         // 2. Update Payouts to Released
+        const payoutQuery = { order: orderId, status: { $nin: ['Released', 'Cancelled', 'Failed'] } };
+        if (sellerId) payoutQuery.seller = sellerId;
+        
         await Payout.updateMany(
-            { order: orderId, status: { $nin: ['Released', 'Cancelled', 'Failed'] } },
+            payoutQuery,
             { $set: { status: 'Released', releasedAt: new Date() } },
             queryOptions
         );
 
         // 3. Update Transactions to Released
+        const transactionQuery = { order: orderId, status: { $in: ['Held', 'Pending', 'Paid'] } };
+        if (sellerId) transactionQuery.seller = sellerId;
+
         await Transaction.updateMany(
-            { order: orderId, status: { $in: ['Held', 'Pending', 'Paid'] } },
+            transactionQuery,
             { $set: { status: 'Released' } },
             queryOptions
         );

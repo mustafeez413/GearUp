@@ -58,7 +58,7 @@ const OrderSchema = new mongoose.Schema({
             sellerReceivable: Number,
             status: {
                 type: String,
-                enum: ['Pending', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'Refunded', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded'],
+                enum: ['Pending', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'Refunded', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled', 'refunded', 'completed'],
                 default: 'pending'
             }
         }
@@ -86,7 +86,7 @@ const OrderSchema = new mongoose.Schema({
     },
     status: {
         type: String,
-        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Order Confirmed', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'Partially Completed', 'pending payment', 'pending approval', 'payment verified', 'order confirmed', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled', 'partially_completed'],
+        enum: ['Pending Payment', 'Pending Approval', 'Payment Verified', 'Order Confirmed', 'Processing', 'Shipped', 'Completed', 'Cancelled', 'Partially Completed', 'pending payment', 'pending approval', 'payment verified', 'order confirmed', 'pending', 'pending_approval', 'verified', 'processing', 'shipped', 'delivered', 'cancelled', 'partially_completed', 'completed'],
         default: 'pending'
     },
     transactionReference: String,

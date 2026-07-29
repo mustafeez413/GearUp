@@ -248,7 +248,7 @@ const InvoiceModal = ({ order, viewMode = 'buyer', sellerId, onClose }) => {
                                         </div>
                                     )}
                                     <div className="flex justify-between items-center pt-2 border-t border-slate-200 text-sm font-heading font-black text-slate-900">
-                                        <span>Net Amount Payable</span>
+                                        <span>Total</span>
                                         <span className="text-emerald-600">{formatPKR(netAmountPayable)}</span>
                                     </div>
                                 </>
